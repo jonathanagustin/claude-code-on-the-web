@@ -1,229 +1,111 @@
-# Claude Code Development Scripts
+# Tools Directory
 
-This directory contains scripts for setting up and managing the Claude Code development environment, particularly for Kubernetes development in sandboxed web sessions.
+Automation scripts for the Kubernetes in gVisor research environment.
 
-## Scripts
+## Available Scripts
 
-### setup-claude.sh
+### `setup-claude.sh` - Environment Setup
 
-Automated installation script for Claude Code web environments that installs:
+**Purpose**: Installs all required tools for Kubernetes development in sandboxed environments.
+
+**Auto-runs**: Via `.claude/hooks/SessionStart` when `CLAUDE_CODE_REMOTE=true`
+
+**What it installs**:
 - Container runtime (Podman, Docker CLI, Buildah)
-- Kubernetes tools (k3s, kubectl, containerd)
-- Additional tools (helm, kubectx)
+- Kubernetes core (k3s, kubectl, containerd)
+- Development tools (Helm, kubectx, kubens)
+- Research tools (inotify-tools, strace, lsof)
 
-**Usage:**
+**Usage**:
 ```bash
-bash scripts/setup-claude.sh
+bash tools/setup-claude.sh
 ```
 
-The script automatically detects if running in a Claude Code web session (`CLAUDE_CODE_REMOTE=true`) and only runs in that environment.
+### `quick-start.sh` - One-Command Cluster Start
 
-### start-k3s.sh
+**Purpose**: Starts the production-ready k3s control-plane and verifies it's working.
 
-Attempts to start a local k3s cluster with worker node support using unshare for proper mount propagation.
+**What it does**:
+1. Starts k3s control-plane using Experiment 05 solution
+2. Waits for cluster to be ready
+3. Displays cluster status
+4. Shows quick-start examples
 
-**Usage:**
+**Usage**:
 ```bash
-sudo bash scripts/start-k3s.sh
+sudo bash tools/quick-start.sh
 ```
 
-**Note:** This is experimental and may not work in all sandboxed environments. See `docs/k3s-sandboxed-environment.md` for details.
+**Output**:
+- Cluster status (nodes, namespaces)
+- Quick examples for Helm, kubectl, RBAC testing
 
-### start-k3s-docker.sh (Recommended)
+## Installed Components
 
-Starts k3s in a Docker container with control-plane-only mode. This is the most reliable option for sandboxed environments.
+### Container Runtime
+- **Podman**: Container management (Docker-compatible)
+- **Buildah**: Container image building
+- **Docker CLI**: Emulated via Podman
 
-**Usage:**
+### Kubernetes Core
+- **k3s**: Lightweight Kubernetes distribution
+- **kubectl**: Kubernetes CLI
+- **containerd**: Container runtime (embedded in k3s)
+
+### Development Tools
+- **Helm**: Kubernetes package manager
+- **helm-unittest**: Chart testing plugin
+- **kubectx/kubens**: Context switching utilities
+
+### Research Tools
+- **inotify-tools**: Real-time file system monitoring
+- **strace**: System call tracing
+- **lsof**: File and process inspection
+
+## Environment Variables
+
+Setup scripts configure:
+- `KUBECONFIG=/etc/rancher/k3s/k3s.yaml`
+- `PATH=/opt/cni/bin:$PATH`
+
+## Related Documentation
+
+- **PROGRESS-SUMMARY.md** - Complete research findings
+- **experiments/** - Chronological experiments (01-17)
+- **solutions/** - Production-ready implementations
+
+## Quick Start Workflow
+
+New session? Run this:
 ```bash
-sudo bash scripts/start-k3s-docker.sh
-```
+# Install all tools (auto-runs via SessionStart hook)
+bash tools/setup-claude.sh
 
-**Features:**
-- Fully working API server
-- Perfect for Helm chart development
-- Stable and reliable
-- All kubectl operations work
+# Start the control-plane
+sudo bash tools/quick-start.sh
 
-**Limitations:**
-- No worker node (control-plane only)
-- Pods cannot actually run
-- Cannot test runtime behavior
-
-### start-k3s-dind.sh
-
-Experimental Docker-in-Docker setup for k3s with worker nodes. Multiple modes available.
-
-**Usage:**
-```bash
-sudo bash scripts/start-k3s-dind.sh [default|docker-runtime|privileged-all]
-```
-
-**Note:** This is experimental and may not work in all environments. See `docs/k3s-sandboxed-environment.md` for details.
-
-## Known Limitations: k3s in Sandboxed Environments
-
-The Claude Code web environment is a **sandboxed container environment** with significant restrictions that prevent k3s from running reliably with full worker node support:
-
-### Technical Issues
-
-1. **cAdvisor/cgroup Limitations**
-   - Error: `Failed to start ContainerManager: failed to get rootfs info: unable to find data in memory cache`
-   - The kubelet's cAdvisor cannot access cgroup filesystem data
-   - This causes worker nodes to fail (control-plane works fine)
-
-2. **Device Access**
-   - Missing `/dev/kmsg` device (kernel message buffer)
-   - Restricted access to system devices required by kubelet
-
-3. **Overlay Filesystem**
-   - `overlayfs` snapshotter fails with mount permission errors
-   - `fuse-overlayfs` provides a workaround for some scenarios
-   - `native` snapshotter partially works but has limitations
-
-4. **Nested Container Restrictions**
-   - Running containers within containers has limitations
-   - Podman networking issues in the sandbox
-
-### Why These Limitations Exist
-
-Claude Code web sessions run in a **restricted sandbox** for security:
-- No elevated kernel capabilities
-- Limited cgroup access
-- Restricted filesystem operations
-- No access to raw devices
-
-These restrictions are **by design** to ensure safety in multi-tenant environments.
-
-## Alternative Approaches
-
-### 1. Helm Testing Without Live Cluster (Recommended)
-
-You can fully test and validate Helm charts without a running Kubernetes cluster:
-
-```bash
-# Lint the chart
-helm lint <chart-path>/
-
-# Validate template rendering
-helm template test <chart-path>/ --debug
-
-# Run unit tests
-helm unittest <chart-path>/
-
-# Test with different values
-helm template test <chart-path>/ \
-  --set key=value
-
-# Generate full manifest
-helm template test <chart-path>/ > /tmp/manifests.yaml
-```
-
-### 2. Use Control-Plane Only Mode
-
-For Helm chart development, the control-plane-only mode (via `start-k3s-docker.sh`) provides everything needed:
-
-```bash
-# Start control-plane only cluster
-sudo bash scripts/start-k3s-docker.sh
-
-# Use kubectl for API operations
-export KUBECONFIG=/root/.kube/config
+# Verify it's working
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 kubectl get namespaces --insecure-skip-tls-verify
-helm install myapp <chart-path>/
+
+# Create and deploy a Helm chart
+helm create mychart
+helm install test ./mychart/
+kubectl get all --insecure-skip-tls-verify
 ```
 
-### 3. Deploy to External Cluster
+## Important Notes
 
-If you have access to an external Kubernetes cluster:
+### What Works ✅
+- Full Kubernetes control-plane
+- kubectl operations (100% functional)
+- Helm chart development and testing
+- YAML validation and server-side dry runs
+- RBAC policy testing
 
-```bash
-# Configure kubectl to use external cluster
-export KUBECONFIG=/path/to/your/kubeconfig
+### What Doesn't Work ❌
+- Pod execution (blocked by cgroup requirements)
+- Container logs/exec (no running containers)
+- Service networking with endpoints
 
-# Deploy using helm
-helm install myapp <chart-path>/
-```
-
-### 4. Local Development (Outside Claude Code Web)
-
-For local development on your own machine:
-
-```bash
-# Install k3d (Kubernetes in Docker)
-curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-
-# Create a cluster
-k3d cluster create mycluster
-
-# Use kubectl
-kubectl get nodes
-```
-
-## Recommendations
-
-**For Claude Code Web Sessions:**
-1. Use `helm template` and `helm unittest` for chart development
-2. Use `helm lint` for validation
-3. Review rendered YAML manifests
-4. Use `start-k3s-docker.sh` for control-plane-only testing
-5. Test deployments on external clusters
-
-**For Full Integration Testing:**
-1. Use a local k3d/kind cluster on your development machine
-2. Use a cloud-based Kubernetes cluster (EKS, GKE, AKS)
-3. Use GitOps repositories for real deployments
-
-## SessionStart Hook
-
-The `.claude/hooks/SessionStart` hook automatically runs `setup-claude.sh` when a new Claude Code web session starts. This ensures all development tools are available.
-
-## Troubleshooting
-
-### CNI Plugin Issues
-If you see "failed to find host-local" errors:
-```bash
-# Verify CNI plugins are copied (not symlinked)
-ls -la /opt/cni/bin/host-local
-# Should show actual file, not symlink
-```
-
-### Container Registry Issues
-If Podman cannot pull images:
-```bash
-# Check registry configuration
-cat /etc/containers/registries.conf | grep unqualified
-```
-
-### K3s Logs
-If k3s fails to start:
-```bash
-# Check detailed logs
-tail -f /var/log/k3s.log
-
-# For Docker-based setup
-docker logs k3s-server
-```
-
-### Common Errors
-
-**"Failed to start ContainerManager: failed to get rootfs info"**
-- This indicates the sandbox environment cannot support k3s worker nodes
-- Use `start-k3s-docker.sh` for control-plane-only mode instead
-
-**"bind-mount error"**
-- Sandbox restrictions prevent certain mount operations
-- Control-plane-only mode avoids these issues
-
-## Contributing
-
-When modifying these scripts:
-1. Test in Claude Code web environment (`CLAUDE_CODE_REMOTE=true`)
-2. Ensure idempotency (safe to run multiple times)
-3. Add appropriate error handling and logging
-4. Update this README with any new limitations or workarounds
-
-## Additional Resources
-
-- `docs/k3s-sandboxed-environment.md` - Detailed documentation on k3s in sandboxed environments
-- `docs/k3s-gvisor/` - gVisor-specific k3s worker node solution (experimental)
-
+See **PROGRESS-SUMMARY.md** for complete analysis of limitations and workarounds.

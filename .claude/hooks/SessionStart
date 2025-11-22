@@ -11,13 +11,14 @@ fi
 
 echo "======================================"
 echo "Claude Code on the Web Environment"
+echo "Kubernetes Research Project"
 echo "======================================"
 echo ""
 
 # Run the setup script to ensure all tools are installed
-if [ -f "scripts/setup-claude.sh" ]; then
+if [ -f "tools/setup-claude.sh" ]; then
     echo "Installing development tools..."
-    bash scripts/setup-claude.sh
+    bash tools/setup-claude.sh
     echo ""
 fi
 
@@ -31,21 +32,32 @@ fi
 export PATH="/opt/cni/bin:$PATH"
 
 echo "======================================"
-echo "Environment Ready"
+echo "Production-Ready Solution Available"
 echo "======================================"
 echo ""
-echo "Available commands:"
-echo "  kubectl get nodes    - Check cluster status"
-echo "  helm version         - Check helm installation"
+echo "🎉 Experiment 05: Control-Plane (PRODUCTION-READY)"
 echo ""
-echo "K3s Cluster:"
-echo "  Start k3s (Docker-based, control-plane only):"
-echo "    sudo bash scripts/start-k3s-docker.sh"
+echo "Start the k3s control-plane:"
+echo "  sudo bash solutions/control-plane-native/start-k3s-native.sh"
 echo ""
-echo "  For chart development, use:"
-echo "    helm template test <chart-path>"
-echo "    helm unittest <chart-path>"
+echo "Perfect for:"
+echo "  ✓ Helm chart development"
+echo "  ✓ YAML validation"
+echo "  ✓ API compatibility testing"
+echo "  ✓ RBAC policy development"
+echo "  ✓ kubectl operations"
 echo ""
-echo "  See docs/k3s-sandboxed-environment.md for more information"
+echo "Quick start commands:"
+echo "  kubectl get namespaces --insecure-skip-tls-verify"
+echo "  helm create mychart"
+echo "  helm install test ./mychart/"
+echo ""
+echo "Research Documentation:"
+echo "  - PROGRESS-SUMMARY.md - Complete findings"
+echo "  - experiments/17-inotify-cgroup-faker/README.md - Latest experiment"
+echo "  - experiments/15-stable-wait-monitoring/README.md - Stable k3s"
+echo ""
+echo "Note: Pod execution is not possible in this environment"
+echo "      (requires real kernel cgroup subsystem)"
 echo ""
 

@@ -159,6 +159,15 @@ echo "================================================"
 echo "Step 3/3: Installing Kubernetes Tools"
 echo "================================================"
 
+# Install system utilities for research
+echo "Installing system utilities (inotify-tools, strace, etc.)..."
+if apt-get install -y -qq inotify-tools strace lsof 2>&1 | grep -v "debconf"; then
+    echo "✓ System utilities installed"
+else
+    echo "⚠ Failed to install some system utilities"
+    INSTALL_ERRORS=$((INSTALL_ERRORS + 1))
+fi
+
 # Install kubectx/kubens
 if ! command -v kubectx &> /dev/null; then
     echo "Installing kubectx/kubens..."
@@ -241,15 +250,21 @@ echo "    - k3s $(k3s --version | awk '{print $3}')"
 echo "    - kubectl $(kubectl version --client --short 2>/dev/null | awk '{print $3}' || echo 'installed')"
 echo "    - containerd (embedded in k3s)"
 echo ""
-echo "  Additional Tools:"
+echo "  Development Tools:"
 command -v helm &> /dev/null && echo "    - helm $(helm version --short)"
 helm plugin list 2>/dev/null | grep -q unittest && echo "    - helm-unittest (for chart testing)"
 command -v kubectx &> /dev/null && echo "    - kubectx/kubens (context switching)"
 echo ""
+echo "  Research Tools:"
+command -v inotifywait &> /dev/null && echo "    - inotify-tools (real-time file monitoring)"
+command -v strace &> /dev/null && echo "    - strace (syscall tracing)"
+command -v lsof &> /dev/null && echo "    - lsof (file/process inspection)"
+echo ""
 echo "Next Steps:"
+echo "  - Start k3s control-plane: sudo bash solutions/control-plane-native/start-k3s-native.sh"
 echo "  - Use 'kubectl' for Kubernetes operations"
 echo "  - Use 'helm' for package management"
-echo "  - Use 'kubectx'/'kubens' for cluster switching"
+echo "  - See PROGRESS-SUMMARY.md for research findings"
 echo ""
 
 if [ $INSTALL_ERRORS -gt 0 ]; then
