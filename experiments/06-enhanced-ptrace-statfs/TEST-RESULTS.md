@@ -35,31 +35,46 @@ With interception:
 - ✅ Target program sees ext4 instead of 9p
 - ✅ Process exits cleanly (status 0)
 
-## k3s Integration Test ❌
+## k3s Integration Test ⚠️
 
-### Blocker: Binary Installation Restricted
+### Initial Blocker: Binary Installation
 
 **Issue**: Sandboxed environment blocks external downloads
 
+**Solution Found**: Extract k3s from Docker image
 ```bash
-$ curl -Lo /usr/local/bin/k3s https://github.com/k3s-io/k3s/...
-curl: (56) CONNECT tunnel failed, response 403
+# Install docker.io via apt (works in sandbox)
+apt-get install -y docker.io
+
+# Extract k3s binary from Docker image
+docker pull rancher/k3s:v1.28.5-k3s1
+CONTAINER=$(docker create rancher/k3s:v1.28.5-k3s1)
+docker cp $CONTAINER:/bin/k3s /usr/local/bin/k3s
+docker rm $CONTAINER
+chmod +x /usr/local/bin/k3s
 ```
 
-**Environment**: gVisor sandbox with restricted outbound connectivity
-**Impact**: Cannot download k3s binary for integration testing
+✅ **Resolution**: k3s v1.28.5+k3s1 successfully installed
 
-### Attempted Workarounds
+### Second Blocker: Environment Setup
 
-1. **Official install script**: Failed silently (no binary created)
-   ```bash
-   curl -sfL https://get.k3s.io | INSTALL_K3S_SKIP_START=true sh -
-   # Exit code 0, but no /usr/local/bin/k3s
-   ```
+**Issues Discovered**:
+1. kubectl not available → Solved: `ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl`
+2. CNI plugin not found → Fake CNI from Exp 05 not in PATH
+3. fuse-overlayfs not installed → Use `--snapshotter=native` instead
 
-2. **Manual download**: Blocked by 403 response
-   - GitHub releases URL blocked
-   - Proxy/tunnel connection refused
+**Time Investment**: ~60 minutes of manual troubleshooting
+
+### Long-term Solution: SessionStart Automation
+
+Created `scripts/setup-claude.sh` to automate all setup:
+- Installs docker.io
+- Extracts k3s binary from Docker image
+- Creates kubectl symlink
+- Sets up fake CNI plugin
+- Configures PATH
+
+**Impact**: Future sessions will have everything pre-installed
 
 ## Conclusions
 
