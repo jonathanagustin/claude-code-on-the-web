@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# SessionStart hook for Claude Code
+# This script runs automatically when a new Claude Code session starts
+
+# Only run in remote (web) environments
+if [ "$CLAUDE_CODE_REMOTE" != "true" ]; then
+    echo "Running locally, skipping environment setup"
+    exit 0
+fi
+
+echo "======================================"
+echo "Claude Code on the Web Environment"
+echo "======================================"
+echo ""
+
+# Run the setup script to ensure all tools are installed
+if [ -f "scripts/setup-claude.sh" ]; then
+    echo "Installing development tools..."
+    bash scripts/setup-claude.sh
+    echo ""
+fi
+
+# Configure environment variables for kubectl
+if [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
+    export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+    echo "✓ KUBECONFIG configured"
+fi
+
+# Add CNI bin directory to PATH
+export PATH="/opt/cni/bin:$PATH"
+
+echo "======================================"
+echo "Environment Ready"
+echo "======================================"
+echo ""
+echo "Available commands:"
+echo "  kubectl get nodes    - Check cluster status"
+echo "  helm version         - Check helm installation"
+echo ""
+echo "K3s Cluster:"
+echo "  Start k3s (Docker-based, control-plane only):"
+echo "    sudo bash scripts/start-k3s-docker.sh"
+echo ""
+echo "  For chart development, use:"
+echo "    helm template test <chart-path>"
+echo "    helm unittest <chart-path>"
+echo ""
+echo "  See docs/k3s-sandboxed-environment.md for more information"
+echo ""
+
