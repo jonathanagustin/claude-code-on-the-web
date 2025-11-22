@@ -10,31 +10,30 @@ This is a research project investigating the feasibility of running Kubernetes (
 
 **🚀 BREAKTHROUGH #2** (2025-11-22): Experiment 13 resolved ALL 6 fundamental blockers for worker nodes! Enhanced ptrace interceptor + --local-storage-capacity-isolation=false + iptables-legacy = functional worker nodes.
 
-**🎊 BREAKTHROUGH #3** (2025-11-22): Experiment 15 achieves FULLY FUNCTIONAL WORKER NODE! Post-start hook panic is NOT fatal + --flannel-backend=none = stable k3s running 5+ minutes with kubectl fully operational!
+**🎊 BREAKTHROUGH #3** (2025-11-22): Experiment 15 achieves stable k3s worker node! Post-start hook panic is NOT fatal + --flannel-backend=none = stable k3s running 15+ minutes with kubectl fully operational!
+
+**🔬 FUNDAMENTAL LIMITATION** (2025-11-22): Experiments 16-17 identified the exact blocker for pod execution - runc requires real kernel-backed cgroup files. Cannot be faked in userspace, FUSE blocked by gVisor, ptrace causes performance issues. **95% of Kubernetes works, pod execution blocked by environment.**
 
 **Status**:
 - ✅ **Control-plane**: PRODUCTION-READY (native k3s with fake CNI)
-- ✅ **Worker nodes**: PRODUCTION-READY (Exp 15: 5+ min runtime, kubectl works, node registered!)
+- ✅ **Worker node API layer**: 100% functional (kubectl works, 15+ min stability)
+- ❌ **Pod execution**: BLOCKED (requires real kernel cgroup subsystem)
 
 ## Quick Start Commands
 
-### Start k3s Worker Node (FULLY FUNCTIONAL - Experiment 15) ⭐
+### ⚡ One-Command Quick Start (RECOMMENDED)
 
 ```bash
-# Complete working solution with 5+ minute stability!
-cd experiments/15-wait-and-retry
-bash run-wait-and-monitor.sh
+# Auto-installs tools and starts production-ready control-plane
+sudo bash tools/quick-start.sh
 
-# Use kubectl (in another terminal):
+# Or manually:
+sudo bash solutions/control-plane-native/start-k3s-native.sh
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-kubectl get nodes --insecure-skip-tls-verify
-# Output: runsc   NotReady   control-plane,master   4m27s   v1.28.5+k3s1
-
-kubectl get pods -A --insecure-skip-tls-verify
-kubectl create deployment nginx --image=nginx --insecure-skip-tls-verify
+kubectl get namespaces --insecure-skip-tls-verify
 ```
 
-### Start k3s Control Plane (Alternative - Experiment 05)
+### Start k3s Control Plane (Production-Ready - Experiment 05) ⭐
 
 ```bash
 # Start native k3s control-plane with fake CNI plugin
@@ -79,33 +78,37 @@ helm upgrade myrelease ./chart/ --set image.tag=v2.0
 helm uninstall myrelease
 ```
 
-### Experimental Worker Nodes
+### Research Worker Node (API Layer Works, Pod Execution Blocked)
 
 ```bash
-# Experiment 13: ULTIMATE SOLUTION (6/6 blockers resolved!) ⭐
+# Experiment 15: STABLE WORKER NODE ⭐ (15+ minute stability)
+cd experiments/15-stable-wait-monitoring
+bash run-wait-and-monitor.sh
+# Result: k3s runs 15+ min, kubectl 100% functional, API layer works
+# Limitation: Pods cannot execute (cgroup blocker)
+
+# Experiments 16-17: Pod Execution Research (FUNDAMENTAL BLOCKER IDENTIFIED)
+cd experiments/16-helm-chart-deployment
+# Result: Pods reach ContainerCreating, blocked by runc cgroup requirement
+
+cd experiments/17-inotify-cgroup-faker
+# Result: Proved inotify works, but cannot fake cgroup files in userspace
+# Finding: runc requires real kernel-backed cgroup files (cannot be faked)
+
+# Experiment 13: Ultimate solution (6/6 k3s blockers resolved)
 cd experiments/13-ultimate-solution
 bash run-ultimate-solution.sh
-# Result: kube-proxy starts, API server runs, ~20s uptime
-# Remaining: API server timing issue (solvable)
+# Result: All k3s startup blockers resolved, runs 20+ seconds
 
-# Experiment 12: Flag discovery
-cd experiments/12-complete-solution
-bash run-k3s-complete.sh
-# Discovered --local-storage-capacity-isolation=false eliminates cAdvisor error
+# Experiments 11-12: Critical discoveries
+# - Exp 11: tmpfs cgroup support discovery
+# - Exp 12: --local-storage-capacity-isolation=false flag
 
-# Experiment 11: tmpfs discovery
-cd experiments/11-tmpfs-cgroup-mount
-bash setup-tmpfs-cgroups.sh
-# Proved tmpfs cgroup files work with bind mounts
-
-# Experiments 09-10: Creative alternatives (see EXPERIMENTS-09-10-SUMMARY.md)
-# - LD_PRELOAD (works on C programs, k3s is Go)
-# - Bind mounts (work in gVisor, proved viability)
-
-# Legacy experiments (06-08)
-cd experiments/06-enhanced-ptrace-statfs  # statfs() spoofing
-cd experiments/07-fuse-cgroup-emulation   # FUSE approach (gVisor limited)
-cd experiments/08-ultimate-hybrid         # Early combination attempt
+# Experiments 06-10: Alternative approaches tested
+# - Exp 06: Enhanced ptrace (causes performance issues)
+# - Exp 07: FUSE cgroups (gVisor blocks I/O operations)
+# - Exp 08: Hybrid approach (components blocked)
+# - Exp 09-10: LD_PRELOAD and bind mounts (partially successful)
 ```
 
 ## Repository Architecture
@@ -118,12 +121,12 @@ cd experiments/08-ultimate-hybrid         # Early combination attempt
 │   ├── methodology.md
 │   ├── findings.md
 │   └── conclusions.md
-├── experiments/       # Chronological experiments (01-13)
+├── experiments/       # Chronological experiments (01-17)
 │   ├── 01-control-plane-only/
 │   ├── 02-worker-nodes-native/
 │   ├── 03-worker-nodes-docker/
 │   ├── 04-ptrace-interception/
-│   ├── 05-fake-cni-breakthrough/       # ← BREAKTHROUGH #1
+│   ├── 05-fake-cni-breakthrough/       # ← BREAKTHROUGH #1: Fake CNI
 │   ├── 06-enhanced-ptrace-statfs/
 │   ├── 07-fuse-cgroup-emulation/
 │   ├── 08-ultimate-hybrid/
@@ -131,7 +134,11 @@ cd experiments/08-ultimate-hybrid         # Early combination attempt
 │   ├── 10-bind-mount-cgroups/          # Direct bind mount approach
 │   ├── 11-tmpfs-cgroup-mount/          # tmpfs discovery
 │   ├── 12-complete-solution/           # Flag discovery
-│   ├── 13-ultimate-solution/           # ← BREAKTHROUGH #2: 6/6 resolved!
+│   ├── 13-ultimate-solution/           # ← BREAKTHROUGH #2: 6/6 k3s blockers resolved
+│   ├── 14-*/                           # (Interim experiment)
+│   ├── 15-stable-wait-monitoring/      # ← BREAKTHROUGH #3: 15+ min stability
+│   ├── 16-helm-chart-deployment/       # Pod execution research
+│   ├── 17-inotify-cgroup-faker/        # ← FUNDAMENTAL BLOCKER identified
 │   ├── EXPERIMENTS-09-10-SUMMARY.md    # Creative alternatives
 │   └── EXPERIMENTS-11-13-SUMMARY.md    # Final breakthroughs
 ├── solutions/         # Production-ready implementations
@@ -140,8 +147,12 @@ cd experiments/08-ultimate-hybrid         # Early combination attempt
 │   └── worker-ptrace-experimental/     # Proof-of-concept (Exp 04)
 ├── docs/              # Technical documentation
 │   └── proposals/     # Upstream contribution proposals
-├── tools/             # Setup scripts and utilities
+├── tools/             # Automation scripts and utilities
+│   ├── setup-claude.sh       # Auto-installs all tools (container runtime, k8s, helm)
+│   ├── quick-start.sh        # One-command cluster startup
+│   └── README.md             # Tools documentation
 ├── BREAKTHROUGH.md    # Experiment 05 discovery story
+├── PROGRESS-SUMMARY.md       # Complete research findings (Experiments 15-17)
 ├── RESEARCH-CONTINUATION.md  # Experiments 06-08 summary
 ├── TESTING-GUIDE.md   # Comprehensive testing procedures
 └── QUICK-REFERENCE.md # Fast lookup guide
@@ -149,58 +160,54 @@ cd experiments/08-ultimate-hybrid         # Early combination attempt
 
 ### Key Scripts
 
-**solutions/control-plane-native/start-k3s-native.sh** ← USE THIS
-- Production-ready native k3s control-plane
-- Uses fake CNI plugin breakthrough (Experiment 05)
+**tools/quick-start.sh** ← ONE-COMMAND START ⚡
+- Auto-starts production-ready control-plane
+- Waits for cluster readiness
+- Displays status and helpful examples
+- Perfect for new sessions
+
+**solutions/control-plane-native/start-k3s-native.sh** ← PRODUCTION-READY
+- Native k3s control-plane with fake CNI plugin (Experiment 05)
 - Starts in ~15-20 seconds
 - Fully stable, runs indefinitely
 - Perfect for Helm chart development
 
-**experiments/06-enhanced-ptrace-statfs/run-enhanced-k3s.sh**
-- Enhanced ptrace with statfs() syscall interception
-- Spoofs 9p filesystem as ext4 for cAdvisor
-- Expected: Worker stability >60 seconds
-- Testing phase
+**experiments/15-stable-wait-monitoring/run-wait-and-monitor.sh** ⭐
+- Stable k3s worker node (Experiment 15)
+- 15+ minute stability, kubectl 100% functional
+- API layer works completely
+- Pod execution blocked by cgroup limitation
 
-**experiments/07-fuse-cgroup-emulation/run-k3s-with-fuse-cgroups.sh**
-- FUSE-based virtual cgroupfs filesystem
-- Provides cgroup files for cAdvisor metrics
-- Clean alternative to ptrace for cgroup access
-- Testing phase
+**experiments/17-inotify-cgroup-faker/cgroup-faker-inotify.sh**
+- Real-time inotify-based cgroup file monitoring
+- Proved inotify works in gVisor
+- Identified fundamental blocker: cannot fake cgroup files in userspace
+- runc requires real kernel-backed cgroup control files
 
-**experiments/13-ultimate-solution/run-ultimate-solution.sh** ⭐
-- Combines ALL working techniques from all 13 experiments
-- Enhanced ptrace interceptor (dynamic /proc/sys/* redirection)
-- --local-storage-capacity-isolation=false (Exp 12)
-- iptables-legacy workaround
-- Fake CNI plugin (Exp 05)
-- Result: 6/6 fundamental blockers resolved!
-- Status: kube-proxy starts, API server runs, ~20s uptime
-
-**experiments/12-complete-solution/run-k3s-complete.sh**
-- Discovered --local-storage-capacity-isolation=false flag
-- Eliminates cAdvisor "unable to find data" error
-- Critical breakthrough for bypassing 9p filesystem check
-
-**tools/setup-claude.sh**
-- Auto-runs via .claude/hooks/SessionStart
-- Installs container runtime, k3s, kubectl, helm
-- Only runs when CLAUDE_CODE_REMOTE=true
-- Documented but non-functional due to cAdvisor limitations
+**tools/setup-claude.sh** (Auto-runs via SessionStart hook)
+- Installs container runtime (podman, docker CLI, buildah)
+- Installs Kubernetes tools (k3s, kubectl, containerd)
+- Installs development tools (helm, helm-unittest, kubectx)
+- Installs research tools (inotify-tools, strace, lsof)
 
 ## Critical Technical Context
 
-### The Fundamental Blocker
+### The Fundamental Blocker (Experiments 16-17)
 
-Worker nodes cannot run because:
-1. kubelet requires ContainerManager to start
-2. ContainerManager requires cAdvisor.GetRootFsInfo("/")
-3. cAdvisor only supports: ext4, xfs, btrfs, overlayfs
-4. This environment uses 9p virtual filesystem (gVisor)
-5. cAdvisor returns "unable to find data in memory cache"
-6. kubelet exits immediately
+Pod execution cannot work because:
+1. ✅ k3s server starts successfully (Experiment 15)
+2. ✅ kubectl operations work 100%
+3. ✅ Pods get scheduled to node
+4. ✅ Pods reach ContainerCreating status
+5. ❌ **runc fails to create pod sandbox** ← BLOCKED HERE
+   - runc requires real kernel-backed cgroup control files
+   - Creating regular files with `echo` → rejected as "not a cgroup file"
+   - FUSE emulation → gVisor blocks I/O operations (Experiment 07)
+   - inotify real-time creation → files not authentic (Experiment 17)
+   - Enhanced ptrace → performance hangs (Experiment 06)
+6. ❌ Pod never reaches Running status
 
-**This is hardcoded in cAdvisor source code and cannot be worked around via configuration.**
+**This cannot be worked around in userspace. Requires real kernel cgroup subsystem.**
 
 ### Successfully Resolved Blockers
 
@@ -321,24 +328,27 @@ kubectl apply -f deployment.yaml --dry-run=server
 ### Testing Changes
 
 ```bash
-# Check logs
-docker logs k3s-server
+# Check k3s status
+systemctl status k3s
+
+# View k3s logs
+journalctl -u k3s -f
 
 # Restart k3s
-docker restart k3s-server
+systemctl restart k3s
 
-# Stop and remove
-docker stop k3s-server && docker rm k3s-server
+# Stop k3s
+systemctl stop k3s
 
-# Re-run setup
-sudo bash solutions/control-plane-docker/start-k3s-docker.sh
+# Re-run setup (quick-start)
+sudo bash tools/quick-start.sh
 ```
 
 ### Accessing the Cluster
 
 ```bash
-# Set kubeconfig
-export KUBECONFIG=/root/.kube/config
+# Set kubeconfig (auto-configured by SessionStart hook)
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 # Skip TLS verification (self-signed cert)
 kubectl get nodes --insecure-skip-tls-verify
@@ -405,9 +415,13 @@ Use control-plane-only solution (solutions/control-plane-docker) - fully functio
 
 The `.claude/hooks/SessionStart` script automatically runs when a Claude Code session starts:
 - Runs tools/setup-claude.sh (if CLAUDE_CODE_REMOTE=true)
-- Installs kubectl, helm, k3s, container runtimes
+- Installs container runtime (podman, docker CLI, buildah)
+- Installs Kubernetes tools (k3s, kubectl, containerd)
+- Installs development tools (helm, helm-unittest, kubectx, kubens)
+- Installs research tools (inotify-tools, strace, lsof)
 - Configures KUBECONFIG environment variable
-- Displays helpful commands
+- Displays production-ready solution instructions
+- Shows quick-start commands and documentation links
 
 ## Important Caveats
 
