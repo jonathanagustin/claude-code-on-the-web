@@ -97,7 +97,7 @@ fi
 
 if ! command -v k3s &> /dev/null; then
     echo "Pulling k3s container image..."
-    docker pull docker.io/rancher/k3s:latest
+    podman pull docker.io/rancher/k3s:latest
 
     echo "Extracting k3s binary from container image..."
     TEMP_DIR=$(mktemp -d)
@@ -106,7 +106,7 @@ if ! command -v k3s &> /dev/null; then
     cd "${TEMP_DIR}"
 
     # Save container image as tar
-    docker save docker.io/rancher/k3s:latest -o k3s-image.tar
+    podman save docker.io/rancher/k3s:latest -o k3s-image.tar
     tar -xf k3s-image.tar
 
     # Find the layer.tar file
@@ -175,11 +175,11 @@ fi
 # Install helm
 if ! command -v helm &> /dev/null; then
     echo "Installing helm from container image..."
-    if docker pull docker.io/dtzar/helm-kubectl:latest 2>&1 | grep -v "Trying to pull"; then
+    if podman pull docker.io/dtzar/helm-kubectl:latest 2>&1 | grep -v "Trying to pull"; then
         TEMP_DIR=$(mktemp -d)
         cd "${TEMP_DIR}"
 
-        docker save docker.io/dtzar/helm-kubectl:latest -o helm-image.tar
+        podman save docker.io/dtzar/helm-kubectl:latest -o helm-image.tar
         tar -xf helm-image.tar
 
         HELM_INSTALLED=false

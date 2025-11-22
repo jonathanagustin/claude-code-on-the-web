@@ -42,16 +42,35 @@ When updating technical documentation:
 4. **Update cross-references** - Keep links between docs current
 5. **Version information** - Include version numbers for software
 
+### claude-code-on-the-web.md
+
+Official documentation for Claude Code on the web platform.
+
+**Contents**:
+- Platform overview and capabilities
+- Getting started guide
+- Cloud environment details
+- Network access and security policies
+- Dependency management and hooks
+- Best practices for cloud development
+
+**Audience**: Developers using Claude Code on the web for remote development.
+
 ## Documentation Structure
 
 ```
 docs/
-└── technical-deep-dive.md    # Detailed technical analysis
-    ├── Environment details
-    ├── What works/doesn't work
-    ├── Root cause analysis
-    ├── Attempted solutions
-    └── Recommendations
+├── technical-deep-dive.md        # Detailed k3s research
+│   ├── Environment details
+│   ├── What works/doesn't work
+│   ├── Root cause analysis
+│   ├── Attempted solutions
+│   └── Recommendations
+└── claude-code-on-the-web.md     # Platform documentation
+    ├── Platform features
+    ├── Environment configuration
+    ├── Network security
+    └── Best practices
 ```
 
 ## See Also
