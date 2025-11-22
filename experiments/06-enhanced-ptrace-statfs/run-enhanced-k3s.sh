@@ -149,7 +149,7 @@ main() {
     K3S_FLAGS=(
         "server"
         # NO --disable-agent! We want worker nodes enabled
-        "--snapshotter=fuse-overlayfs"
+        "--snapshotter=native"
         "--kubelet-arg=--fail-swap-on=false"
         "--kubelet-arg=--image-gc-high-threshold=100"
         "--kubelet-arg=--image-gc-low-threshold=99"

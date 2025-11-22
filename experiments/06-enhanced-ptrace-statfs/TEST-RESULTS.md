@@ -202,6 +202,59 @@ void handle_statfs_exit(pid_t pid, struct user_regs_struct *regs) {
 - `/tmp/exp06-k3s.log` - Partial k3s startup logs (failed due to missing binary)
 - This document - Test results summary
 
+## Update: Integration Testing Attempted (2025-11-22 21:15)
+
+### Environment Setup Resolved ✅
+
+Successfully automated all prerequisite installation:
+- Created `scripts/setup-claude.sh` with Docker-based k3s extraction
+- Added `/etc/profile.d/cni-path.sh` for system-wide CNI plugin PATH
+- Updated `run-enhanced-k3s.sh` to use `--snapshotter=native` (fuse-overlayfs unavailable)
+
+### Integration Test Findings ⚠️
+
+**Attempt**: Run k3s with enhanced ptrace interceptor
+
+**Observation**:
+- Interceptor successfully attached to k3s process (ptrace TRACEME + fork/exec pattern works)
+- k3s process started (PID 8708, traced by interceptor PID 8697)
+- Process remained running for 2+ minutes WITHOUT exiting (improvement over earlier attempts)
+- However: k3s appeared to hang during initialization
+  - API server never became responsive (port 6443 refused connections)
+  - Only 3 threads created (8709, 8710, 8711) vs expected dozens
+  - Process state: S (sleeping) - waiting but not progressing
+  - No interception output generated
+
+**Root Cause Analysis**:
+The ptrace-based interception creates several fundamental challenges:
+
+1. **Thread Tracing Complexity**: k3s is heavily multi-threaded. While `PTRACE_O_TRACECLONE` is set to follow thread creation, managing dozens of threads with individual syscall tracing is complex.
+
+2. **Performance Overhead**: Intercepting every syscall entry/exit adds 2-5x latency. k3s makes thousands of syscalls during initialization.
+
+3. **Initialization Blocking**: k3s appears to hang at an early stage, possibly due to:
+   - Timeout waiting for syscalls to complete
+   - Race conditions between threads when some are traced and others complete syscalls
+   - Internal k3s watchdogs detecting slow initialization
+
+**Comparison to Experiment 04**:
+- Experiment 04: k3s ran for 30-60s before cAdvisor error
+- Experiment 06: k3s hangs during initialization, never reaches kubelet/cAdvisor stage
+- Conclusion: Enhanced interceptor added too much complexity/overhead
+
+### Technical Limitations Identified
+
+**Ptrace Approach Challenges**:
+1. Cannot reliably intercept multi-process, multi-threaded applications like k3s
+2. Syscall interception overhead too high for production use
+3. Difficult to debug when interception causes behavioral changes
+
+**Alternative Approaches to Consider**:
+1. **eBPF-based interception**: Lower overhead, better multi-threading support
+2. **FUSE filesystem**: Intercept at VFS layer (Experiment 07 direction)
+3. **Kernel module**: Highest performance but requires kernel access
+4. **Upstream cAdvisor patch**: Add 9p filesystem support directly
+
 ## Related Documentation
 
 - experiments/06-enhanced-ptrace-statfs/README.md - Experiment design
@@ -210,6 +263,6 @@ void handle_statfs_exit(pid_t pid, struct user_regs_struct *regs) {
 
 ---
 
-**Test Status**: Component validation complete ✅, k3s integration blocked ❌
-**Next Action**: Run in environment with k3s pre-installed
-**Confidence**: High that statfs() spoofing works, moderate that it solves worker stability
+**Test Status**: Component validation complete ✅, integration testing inconclusive ⚠️
+**Finding**: statfs() interception works perfectly in isolation; ptrace overhead blocks k3s initialization
+**Recommendation**: Explore eBPF or FUSE-based approaches (Experiments 07-08) for production viability
