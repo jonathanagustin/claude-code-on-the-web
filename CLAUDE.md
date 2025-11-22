@@ -6,26 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a research project investigating the feasibility of running Kubernetes (k3s) worker nodes in highly restricted sandbox environments (gVisor/runsc with 9p virtual filesystems), specifically targeting Claude Code web sessions.
 
-**Key Finding**: Control-plane-only mode works perfectly for Helm chart development; full worker nodes are blocked by cAdvisor's inability to recognize 9p filesystems.
+**🎉 BREAKTHROUGH** (2025-11-22): Discovered that k3s requires CNI plugins even with `--disable-agent`. Created minimal fake CNI plugin that enables **native k3s control-plane** (no Docker required)!
+
+**Status**:
+- ✅ **Control-plane**: PRODUCTION-READY (native k3s with fake CNI)
+- 🔧 **Worker nodes**: EXPERIMENTAL (multiple approaches in testing phase)
 
 ## Quick Start Commands
 
-### Start k3s Control Plane (Recommended)
+### Start k3s Control Plane (Recommended - BREAKTHROUGH SOLUTION)
 
 ```bash
-# Start control-plane-only k3s cluster (stable, production-ready)
-sudo bash solutions/control-plane-docker/start-k3s-docker.sh
+# Start native k3s control-plane with fake CNI plugin
+sudo bash solutions/control-plane-native/start-k3s-native.sh
 
 # Configure kubectl
-export KUBECONFIG=/root/.kube/config
+export KUBECONFIG=/tmp/k3s-control-plane/kubeconfig.yaml
 
 # Verify it works
-kubectl get namespaces --insecure-skip-tls-verify
+kubectl get namespaces
 
 # Test with Helm
 helm create testchart
 helm install test ./testchart/
 kubectl get all
+```
+
+### Alternative: Docker-based Control Plane (Legacy)
+
+```bash
+# Older approach using Docker (still works, but native is better)
+sudo bash solutions/control-plane-docker/start-k3s-docker.sh
+export KUBECONFIG=/root/.kube/config
+kubectl get namespaces --insecure-skip-tls-verify
 ```
 
 ### Development Workflow
@@ -46,13 +59,24 @@ helm upgrade myrelease ./chart/ --set image.tag=v2.0
 helm uninstall myrelease
 ```
 
-### Experimental Worker Node (Unstable)
+### Experimental Worker Nodes (Testing Phase)
 
 ```bash
-# Build and run ptrace-based worker (30-60s runtime)
+# Experiment 06: Enhanced ptrace with statfs() interception
+cd experiments/06-enhanced-ptrace-statfs
+sudo ./run-enhanced-k3s.sh
+
+# Experiment 07: FUSE cgroup filesystem emulation
+cd experiments/07-fuse-cgroup-emulation
+sudo ./run-k3s-with-fuse-cgroups.sh
+
+# Experiment 08: Ultimate hybrid (all techniques combined)
+cd experiments/08-ultimate-hybrid
+sudo ./run-ultimate-k3s.sh
+
+# Legacy: Basic ptrace (30-60s runtime)
 cd solutions/worker-ptrace-experimental
-./setup-k3s-worker.sh build
-./setup-k3s-worker.sh run
+./setup-k3s-worker.sh build && ./setup-k3s-worker.sh run
 ```
 
 ## Repository Architecture
@@ -60,44 +84,64 @@ cd solutions/worker-ptrace-experimental
 ### Directory Structure
 
 ```
-├── research/          # Research documentation (methodology, findings)
+├── research/          # Research documentation (updated with Exp 06-08)
 │   ├── research-question.md
 │   ├── methodology.md
-│   ├── findings.md
-│   └── conclusions.md
-├── experiments/       # Chronological experiments (01-04)
+│   ├── findings.md     # Updated with new experiments
+│   └── conclusions.md  # Updated with new approaches
+├── experiments/       # Chronological experiments (01-08)
 │   ├── 01-control-plane-only/
 │   ├── 02-worker-nodes-native/
 │   ├── 03-worker-nodes-docker/
-│   └── 04-ptrace-interception/
+│   ├── 04-ptrace-interception/
+│   ├── 05-fake-cni-breakthrough/       # ← MAJOR BREAKTHROUGH
+│   ├── 06-enhanced-ptrace-statfs/      # NEW: statfs() spoofing
+│   ├── 07-fuse-cgroup-emulation/       # NEW: FUSE cgroupfs
+│   └── 08-ultimate-hybrid/             # NEW: All combined
 ├── solutions/         # Production-ready implementations
-│   ├── control-plane-docker/      # Recommended solution
-│   └── worker-ptrace-experimental/ # Unstable proof-of-concept
-├── tools/            # Setup scripts and utilities
-└── docs/             # Technical deep-dive documentation
+│   ├── control-plane-native/           # ← RECOMMENDED (Exp 05)
+│   ├── control-plane-docker/           # Legacy
+│   └── worker-ptrace-experimental/     # Proof-of-concept
+├── docs/              # Technical documentation
+│   └── proposals/     # Upstream contribution proposals
+├── tools/             # Setup scripts and utilities
+├── BREAKTHROUGH.md    # Experiment 05 discovery story
+├── RESEARCH-CONTINUATION.md  # Experiments 06-08 summary
+├── TESTING-GUIDE.md   # Comprehensive testing procedures
+└── QUICK-REFERENCE.md # Fast lookup guide
 ```
 
 ### Key Scripts
 
-**solutions/control-plane-docker/start-k3s-docker.sh**
-- Production-ready control-plane-only k3s in Docker
-- Starts in ~30 seconds
+**solutions/control-plane-native/start-k3s-native.sh** ← USE THIS
+- Production-ready native k3s control-plane
+- Uses fake CNI plugin breakthrough (Experiment 05)
+- Starts in ~15-20 seconds
 - Fully stable, runs indefinitely
 - Perfect for Helm chart development
 
-**solutions/worker-ptrace-experimental/setup-k3s-worker.sh**
-- Experimental ptrace-based syscall interceptor
-- Enables worker nodes for 30-60 seconds
-- Proof-of-concept only, unstable
-- Written in C, intercepts /proc/sys access
+**experiments/06-enhanced-ptrace-statfs/run-enhanced-k3s.sh**
+- Enhanced ptrace with statfs() syscall interception
+- Spoofs 9p filesystem as ext4 for cAdvisor
+- Expected: Worker stability >60 seconds
+- Testing phase
+
+**experiments/07-fuse-cgroup-emulation/run-k3s-with-fuse-cgroups.sh**
+- FUSE-based virtual cgroupfs filesystem
+- Provides cgroup files for cAdvisor metrics
+- Clean alternative to ptrace for cgroup access
+- Testing phase
+
+**experiments/08-ultimate-hybrid/run-ultimate-k3s.sh**
+- Combines ALL techniques (Exp 05 + 06 + 07)
+- Goal: 60+ minute stable worker nodes
+- Maximum probability of success
+- Testing phase
 
 **tools/setup-claude.sh**
 - Auto-runs via .claude/hooks/SessionStart
 - Installs container runtime, k3s, kubectl, helm
 - Only runs when CLAUDE_CODE_REMOTE=true
-
-**tools/start-k3s.sh**
-- Native k3s with worker node attempt
 - Documented but non-functional due to cAdvisor limitations
 
 ## Critical Technical Context
@@ -136,18 +180,34 @@ cp /usr/lib/cni/host-local /opt/cni/bin/host-local
 
 These fixes brought us to the final blocker (cAdvisor filesystem incompatibility).
 
-### Ptrace Interception Approach
+### Worker Node Research Approaches
 
-The experimental worker solution uses ptrace to intercept syscalls:
-- Attaches to k3s process with PTRACE_ATTACH
+**Experiment 04: Basic Ptrace** (Proven Concept)
 - Intercepts open() and openat() syscalls
 - Redirects /proc/sys/* paths to /tmp/fake-procsys/*
 - Enables kubelet to start, but unstable (30-60s runtime)
+- Location: solutions/worker-ptrace-experimental/
 
-**Location**: solutions/worker-ptrace-experimental/ptrace_interceptor.c
+**Experiment 06: Enhanced Ptrace** (Testing)
+- Extends Exp 04 with statfs() syscall interception
+- Spoofs 9p filesystem type as ext4 to fool cAdvisor
+- Expected: Extended stability beyond 60 seconds
+- Location: experiments/06-enhanced-ptrace-statfs/
 
-Limitations:
-- Cannot emulate cgroup pseudo-filesystem
+**Experiment 07: FUSE cgroup Emulation** (Testing)
+- Virtual cgroupfs filesystem using FUSE
+- Provides cgroup files cAdvisor needs for metrics
+- Clean alternative to ptrace for cgroup access
+- Location: experiments/07-fuse-cgroup-emulation/
+
+**Experiment 08: Ultimate Hybrid** (Testing)
+- Combines Fake CNI + Enhanced Ptrace + FUSE cgroups
+- All techniques working together
+- Goal: 60+ minute stable worker nodes
+- Location: experiments/08-ultimate-hybrid/
+
+Limitations of current approaches:
+- Cannot fully emulate kernel cgroup pseudo-filesystem (partial in Exp 07)
 - cAdvisor still periodically detects 9p
 - Performance overhead: ~2-5x on intercepted syscalls
 

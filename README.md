@@ -37,21 +37,30 @@ For **experimentation**: Ptrace interception approach demonstrates theoretical p
 ├── research/           # Research documentation
 │   ├── research-question.md
 │   ├── methodology.md
-│   ├── findings.md
-│   └── conclusions.md
+│   ├── findings.md     # Updated with Experiments 06-08
+│   └── conclusions.md  # Updated with new approaches
 ├── experiments/        # Chronological experiments
 │   ├── 01-control-plane-only/
 │   ├── 02-worker-nodes-native/
 │   ├── 03-worker-nodes-docker/
 │   ├── 04-ptrace-interception/
-│   └── 05-fake-cni-breakthrough/      # ← MAJOR BREAKTHROUGH
+│   ├── 05-fake-cni-breakthrough/       # ← MAJOR BREAKTHROUGH
+│   ├── 06-enhanced-ptrace-statfs/      # ← NEW: statfs() interception
+│   ├── 07-fuse-cgroup-emulation/       # ← NEW: FUSE cgroupfs
+│   └── 08-ultimate-hybrid/             # ← NEW: All techniques combined
 ├── solutions/          # Production-ready implementations
-│   ├── control-plane-native/          # ← NEW: Native k3s solution
-│   ├── control-plane-docker/
-│   └── worker-ptrace-experimental/
+│   ├── control-plane-native/           # ← RECOMMENDED: Native k3s solution
+│   ├── control-plane-docker/           # Legacy
+│   └── worker-ptrace-experimental/     # Proof-of-concept
+├── docs/               # Technical documentation
+│   └── proposals/      # Upstream contribution proposals
+│       ├── custom-kubelet-build.md     # kubelet without cAdvisor
+│       └── cadvisor-9p-support.md      # Add 9p to cAdvisor
 ├── tools/              # Setup and utility scripts
-├── docs/               # Technical deep-dive documentation
-├── BREAKTHROUGH.md     # Complete breakthrough documentation
+├── BREAKTHROUGH.md     # Experiment 05 breakthrough story
+├── RESEARCH-CONTINUATION.md   # Experiments 06-08 summary
+├── TESTING-GUIDE.md    # Comprehensive testing procedures
+├── QUICK-REFERENCE.md  # Fast lookup guide
 └── .claude/            # Claude Code configuration
 ```
 
@@ -90,13 +99,38 @@ cd solutions/worker-ptrace-experimental
 
 This project documented multiple approaches and their outcomes:
 
+**Phase 1: Initial Investigation (Experiments 01-04)**
 1. **Native k3s** - Identified fundamental blocker (cAdvisor + 9p filesystem)
 2. **Docker-in-Docker** - Explored containerization workarounds (unsuccessful for workers)
 3. **Control-plane-only** - Discovered practical solution for development workflows
-4. **Ptrace interception** - Pioneered syscall-level workarounds (proof-of-concept)
-5. **🎉 Fake CNI Breakthrough** - Discovered k3s requires CNI even with --disable-agent, created minimal fake plugin that enables native control-plane (PRODUCTION-READY)
+4. **Ptrace interception** - Pioneered syscall-level workarounds (proof-of-concept, 30-60s stability)
 
-See `BREAKTHROUGH.md` for the complete breakthrough story and `research/` directory for detailed methodology and findings.
+**Phase 2: Major Breakthrough (Experiment 05)** 🎉
+5. **Fake CNI Plugin** - Discovered k3s requires CNI even with --disable-agent
+   - Created minimal fake plugin that enables native control-plane
+   - **PRODUCTION-READY** - Completely solves control-plane problem
+   - See `BREAKTHROUGH.md` for the complete story
+
+**Phase 3: Worker Node Solutions (Experiments 06-08)** 🔧
+6. **Enhanced Ptrace** - Extended syscall interception to spoof `statfs()` filesystem type
+   - Prevents cAdvisor from detecting unsupported 9p filesystem
+   - Expected: Extended worker node stability beyond 60 seconds
+
+7. **FUSE cgroup Emulation** - Virtual cgroupfs filesystem in userspace
+   - Provides cgroup files cAdvisor needs for metrics
+   - Clean, maintainable alternative to ptrace for cgroup access
+
+8. **Ultimate Hybrid** - Combines ALL successful techniques
+   - Fake CNI + Enhanced Ptrace + FUSE cgroups + all workarounds
+   - Goal: 60+ minute stable worker nodes
+   - **Testing phase** - Ready for validation
+
+**Phase 4: Upstream Paths** 📝
+- Documented proposals for cAdvisor 9p support
+- Documented custom kubelet build options
+- Ready for community engagement
+
+See `BREAKTHROUGH.md` for Experiment 05 story, `RESEARCH-CONTINUATION.md` for Experiments 06-08 summary, and `research/` directory for detailed methodology and findings.
 
 ## Technical Contributions
 
@@ -145,10 +179,23 @@ The fundamental blocker for worker nodes is **cAdvisor's filesystem compatibilit
 
 ## Documentation
 
+### Quick Access
+- **🚀 Quick Start**: `QUICK-REFERENCE.md` - Fast lookup for commands and concepts
+- **🧪 Testing**: `TESTING-GUIDE.md` - Comprehensive testing procedures for all experiments
+- **🎉 Breakthrough**: `BREAKTHROUGH.md` - Experiment 05 fake CNI discovery
+- **🔬 Research Continuation**: `RESEARCH-CONTINUATION.md` - Experiments 06-08 summary
+
+### Detailed Documentation
 - **Research Overview**: `research/` directory
-- **Detailed Findings**: `docs/technical-deep-dive.md`
-- **Experiment Details**: `experiments/*/README.md`
-- **Solution Guides**: `solutions/*/README.md`
+  - `research-question.md` - Original research question
+  - `methodology.md` - Research approach
+  - `findings.md` - All findings (updated with Exp 06-08)
+  - `conclusions.md` - All conclusions (updated with new approaches)
+- **Experiment Details**: `experiments/*/README.md` - Each experiment documented
+- **Solution Guides**: `solutions/*/README.md` - Production-ready scripts
+- **Upstream Proposals**: `docs/proposals/` - Community contribution paths
+  - `custom-kubelet-build.md` - kubelet without cAdvisor dependency
+  - `cadvisor-9p-support.md` - Adding 9p filesystem support to cAdvisor
 
 ## Related Work
 
