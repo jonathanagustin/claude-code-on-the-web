@@ -162,6 +162,193 @@ The fundamental blocker for worker nodes is **cAdvisor's filesystem compatibilit
 - **OS**: Linux 4.4.0
 - **Limitations**: No privileged operations, limited cgroup access
 
+## Environment Reconnaissance
+
+### System Information
+
+**Operating System**
+- Distribution: Ubuntu 24.04.3 LTS (Noble Numbat)
+- Kernel: Linux 4.4.0 (gVisor runsc)
+- Architecture: x86_64
+- Hostname: runsc
+
+**Filesystem**
+```
+Root filesystem: 9p (Plan 9 Protocol)
+Mount options: rw,trans=fd,rfdno=4,wfdno=4,aname=/,dfltuid=4294967294,dfltgid=4294967294,dcache=1000,cache=remote_revalidating,disable_fifo_open,overlayfs_stale_read,directfs
+Block size: 4096 bytes
+Total space: ~30GB
+Used: 7.3MB
+Available: 30GB
+```
+
+**Resource Limits**
+- CPU Cores: 16
+- Memory: 13GB total, 12GB available
+- Swap: Disabled (0B)
+- Memory limit (cgroup): 8GB
+
+**Cgroup Configuration**
+- Version: cgroup v1 (legacy)
+- Available controllers: cpu, cpuacct, cpuset, devices, job, memory, pids
+- Container ID: `container_011sNvMuVN4bvt2FYbRzsQsz--claude_code_remote--husky-sinful-scarce-volts`
+- Mounted at: `/sys/fs/cgroup/` (tmpfs)
+
+### Capabilities
+
+**Current Capabilities** (Effective)
+- `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_FOWNER`, `CAP_FSETID`
+- `CAP_KILL`, `CAP_SETGID`, `CAP_SETUID`, `CAP_SETPCAP`
+- `CAP_NET_BIND_SERVICE`, `CAP_NET_ADMIN`, `CAP_NET_RAW`
+- `CAP_SYS_CHROOT`, `CAP_SYS_PTRACE`, `CAP_SYS_ADMIN`
+- `CAP_MKNOD`, `CAP_AUDIT_WRITE`, `CAP_SETFCAP`
+
+**Bounding Set** (Restricted)
+- `CAP_CHOWN`, `CAP_KILL`, `CAP_SETGID`, `CAP_SETUID`
+- `CAP_NET_BIND_SERVICE`, `CAP_SYS_CHROOT`, `CAP_AUDIT_WRITE`
+
+**Security Context**
+- Running as: root (uid=0, gid=0)
+- Securebits: noroot, no-suid-fixup, keep-caps (all locked)
+- No new privileges enforced
+
+### Available Development Tools
+
+**Compilers & Runtimes**
+- GCC: 13.3.0
+- Python: 3.11.14
+- Node.js: v22.21.1
+- Go: 1.24.7
+
+**Container Tools** (Not Pre-installed)
+- Docker: Not installed
+- containerd: Not installed
+- k3s: Not installed (must be installed via SessionStart hook)
+- kubectl: Not installed (must be installed via SessionStart hook)
+- helm: Not installed (must be installed via SessionStart hook)
+
+### Network Configuration
+
+**Interfaces**
+- Network stack available but limited
+- Restricted egress capabilities
+- No access to raw sockets by default
+
+### Device Nodes
+
+**Available**
+- `/dev/null` - Standard null device
+- `/dev/pts/*` - Pseudo-terminal devices
+- `/dev/shm` - Shared memory (tmpfs, 252GB)
+
+**Not Available**
+- `/dev/kmsg` - Kernel message buffer (missing)
+- `/dev/kvm` - Hardware virtualization (missing)
+- Most hardware devices are virtualized or blocked
+
+### Mount Points
+
+**Critical Mounts**
+```
+/           - 9p filesystem (read-write)
+/dev        - tmpfs (read-write, mode=0755)
+/sys        - sysfs (read-only, noexec, nosuid)
+/proc       - procfs (read-write)
+/dev/pts    - devpts (read-write)
+/dev/shm    - tmpfs (read-write, noexec, nosuid, mode=1777)
+/sys/fs/cgroup - tmpfs (read-write, noexec, nosuid)
+├── cpu
+├── cpuacct
+├── cpuset
+├── devices
+├── job
+├── memory
+└── pids
+```
+
+### Claude Code Environment Variables
+
+```
+CLAUDE_CODE_REMOTE=true
+CLAUDE_CODE_VERSION=2.0.50
+CLAUDE_CODE_SESSION_ID=session_01MCQtNJfhKdKhSpkPgMLsw7
+CLAUDE_CODE_CONTAINER_ID=container_011sNvMuVN4bvt2FYbRzsQsz--claude_code_remote--husky-sinful-scarce-volts
+CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=cloud_default
+CLAUDE_CODE_ENTRYPOINT=remote
+CLAUDE_CODE_DEBUG=true
+```
+
+### Limitations & Constraints
+
+**Filesystem Limitations**
+- 9p filesystem not recognized by cAdvisor (ext4/xfs/btrfs/overlayfs only)
+- No direct access to block devices
+- Limited inotify capabilities
+- Dentry cache limited to 1000 entries on some mounts
+
+**Security Restrictions**
+- Cannot escape sandbox (by design)
+- No hardware virtualization (/dev/kvm unavailable)
+- Limited kernel features (gVisor compatibility layer)
+- Some syscalls are intercepted/restricted
+
+**Container Runtime Constraints**
+- No native Docker daemon available
+- Must install container runtime (containerd) manually
+- Limited cgroup manipulation
+- Cannot create nested containers without setup
+
+**Kernel Version Restrictions**
+- Kernel 4.4.0 (old version for compatibility)
+- Many modern kernel features unavailable
+- `/proc/sys/kernel/osrelease` not accessible
+- Limited kernel tunables in `/proc/sys`
+
+### Implications for Kubernetes
+
+**Why Worker Nodes Are Challenging**
+1. **cAdvisor Dependency**: kubelet's ContainerManager requires cAdvisor
+2. **Filesystem Detection**: cAdvisor.GetRootFsInfo() only supports ext4/xfs/btrfs/overlayfs
+3. **9p Incompatibility**: Returns "unable to find data in memory cache" for 9p
+4. **Hard Requirement**: No configuration option to disable or work around this check
+
+**What Works**
+- k3s control-plane (with fake CNI plugin)
+- API Server, Scheduler, Controller Manager
+- kubectl operations
+- Helm chart development
+- Resource validation
+
+**What Doesn't Work (Without Workarounds)**
+- Worker nodes (kubelet requires cAdvisor)
+- Pod execution
+- Container metrics
+- Full cluster functionality
+
+### Testing This Environment
+
+Run these commands to verify your environment matches the reconnaissance:
+
+```bash
+# Filesystem type
+mount | grep " / "
+
+# Capabilities
+capsh --print | grep Current
+
+# Resources
+nproc && free -h
+
+# Cgroup version
+test -d /sys/fs/cgroup/unified && echo "v2" || echo "v1"
+
+# Claude Code detection
+env | grep CLAUDE_CODE
+
+# Available compilers
+gcc --version && python3 --version && node --version && go version
+```
+
 ## Use Cases
 
 ### ✅ Supported Use Cases
