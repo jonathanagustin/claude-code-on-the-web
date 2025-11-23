@@ -260,8 +260,34 @@ command -v inotifywait &> /dev/null && echo "    - inotify-tools (real-time file
 command -v strace &> /dev/null && echo "    - strace (syscall tracing)"
 command -v lsof &> /dev/null && echo "    - lsof (file/process inspection)"
 echo ""
+
+# =============================================================================
+# OPTIONAL: Install Docker Bridge Networking Solution
+# =============================================================================
+if [ -f "solutions/docker-bridge-networking/install.sh" ]; then
+    echo "================================================"
+    echo "Optional: Docker Bridge Networking Solution"
+    echo "================================================"
+    echo ""
+    echo "Install experimental bridge networking support for Docker?"
+    echo "  - Improves Docker networking in sandboxed environment"
+    echo "  - Partially enables bridge mode (experimental)"
+    echo "  - Host networking still recommended"
+    echo ""
+    read -p "Install? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        bash solutions/docker-bridge-networking/install.sh
+    else
+        echo "Skipped Docker bridge networking solution"
+        echo "You can install later: sudo bash solutions/docker-bridge-networking/install.sh"
+    fi
+    echo ""
+fi
+
 echo "Next Steps:"
 echo "  - Start k3s control-plane: sudo bash solutions/control-plane-native/start-k3s-native.sh"
+echo "  - Start Docker (if installed): docker-bridge start"
 echo "  - Use 'kubectl' for Kubernetes operations"
 echo "  - Use 'helm' for package management"
 echo "  - See PROGRESS-SUMMARY.md for research findings"
