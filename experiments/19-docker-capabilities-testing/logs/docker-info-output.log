@@ -1,0 +1,94 @@
+# Docker Info Output - gVisor/9p Environment
+# Date: 2025-11-23
+
+$ docker version
+Client:
+ Version:           28.2.2
+ API version:       1.48
+ Go version:        go1.23.4
+ Git commit:        28.2.2-0ubuntu1~24.04.1
+ Built:             Tue Sep 10 10:16:23 2024
+ OS/Arch:           linux/amd64
+
+Server:
+ Engine:
+  Version:          28.2.2
+  API version:      1.48 (minimum version 1.24)
+  Go version:       go1.23.4
+  Git commit:       28.2.2-0ubuntu1~24.04.1
+  Built:            Tue Sep 10 10:16:23 2024
+  OS/Arch:          linux/amd64
+
+$ docker info
+Client:
+ Version:    28.2.2
+ Context:    default
+
+Server:
+ Containers: 1
+  Running: 1
+  Paused: 0
+  Stopped: 0
+ Images: 3
+ Server Version: 28.2.2
+ Storage Driver: vfs
+ Logging Driver: json-file
+ Cgroup Driver: cgroupfs
+ Cgroup Version: 1
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version:  
+ runc version:
+ init version:
+ Security Options:
+  apparmor
+  seccomp
+   Profile: builtin
+ Kernel Version: 4.4.0
+ Operating System: Ubuntu 24.04.2 LTS (noble)
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 2
+ Total Memory: 7.624GiB
+ Name: CLAUDE_WEB
+ ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ Experimental: false
+ Insecure Registries:
+  127.0.0.0/8
+ Live Restore Enabled: false
+
+WARNING: No swap limit support
+WARNING: No kernel memory TCP limit support
+WARNING: No oom kill disable support
+WARNING: No blkio throttle.read_bps_device support
+WARNING: No blkio throttle.write_bps_device support
+WARNING: No blkio throttle.read_iops_device support
+WARNING: No blkio throttle.write_iops_device support
+
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          3         2         241MB     231MB (95%)
+Containers      1         1         3.122kB   0B (0%)
+Local Volumes   3         3         5.181MB   0B (0%)
+Build Cache     0         0         0B        0B
+
+$ mount | grep " / "
+none on / type 9p (rw,trans=fd,rfdno=4,wfdno=4,aname=/,dfltuid=4294967294,dfltgid=4294967294,dcache=1000,cache=remote_revalidating,disable_fifo_open,overlayfs_stale_read,directfs)
+
+$ stat -f /var/lib/docker
+  File: "/var/lib/docker"
+    ID: 0        Namelen: 256     Type: v9fs
+Block size: 4096       Fundamental block size: 4096
+Blocks: Total: 7696873    Free: 7274577    Available: 7270481
+Inodes: Total: 1966080    Free: 1960022
+
+$ df -hT /var/lib/docker
+Filesystem     Type  Size  Used Avail Use% Mounted on
+none           9p     30G  1.7G   28G   6% /var/lib/docker

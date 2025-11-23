@@ -1,0 +1,127 @@
+# Docker Compose Example for gVisor/9p Environment
+# Demonstrates host networking workaround for multi-container applications
+#
+# LIMITATION: Bridge networking doesn't work in gVisor sandbox
+# WORKAROUND: All services use host networking and different ports
+
+version: '3.8'
+
+services:
+  # Database service on port 5432
+  database:
+    image: postgres:15-alpine
+    network_mode: host  # Required: bridge networking fails in gVisor
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: myapp
+      # Listen on default port 5432
+      # Accessible via localhost:5432 from other containers
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Cache service on port 6379
+  cache:
+    image: redis:7-alpine
+    network_mode: host  # Required: bridge networking fails in gVisor
+    # Listen on default port 6379
+    # Accessible via localhost:6379 from other containers
+    restart: unless-stopped
+
+  # Web application on port 8080
+  web:
+    image: rancher/k3s:latest
+    network_mode: host  # Required: bridge networking fails in gVisor
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "Web application starting..."
+        echo "Database: localhost:5432"
+        echo "Cache: localhost:6379"
+        echo "Web: localhost:8080"
+        sleep infinity
+    depends_on:
+      - database
+      - cache
+    environment:
+      # Connect to other services via localhost
+      DATABASE_URL: postgresql://postgres:example@localhost:5432/myapp
+      REDIS_URL: redis://localhost:6379
+      PORT: 8080
+    restart: unless-stopped
+
+  # API service on port 3000
+  api:
+    image: rancher/k3s:latest
+    network_mode: host  # Required: bridge networking fails in gVisor
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "API service starting..."
+        echo "Database: localhost:5432"
+        echo "Cache: localhost:6379"
+        echo "API: localhost:3000"
+        sleep infinity
+    depends_on:
+      - database
+      - cache
+    environment:
+      # Connect to other services via localhost
+      DATABASE_URL: postgresql://postgres:example@localhost:5432/myapp
+      REDIS_URL: redis://localhost:6379
+      PORT: 3000
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+
+# NOTES:
+#
+# 1. All services MUST use "network_mode: host"
+#    - Bridge networking fails with "permission denied"
+#    - Custom networks don't work
+#
+# 2. Services communicate via localhost
+#    - No container-to-container DNS
+#    - Use localhost:<port> instead of <service-name>:<port>
+#
+# 3. Each service must use a different port
+#    - No port mapping available (-p flag doesn't work)
+#    - Services bind directly to host ports
+#
+# 4. Port conflicts are possible
+#    - Make sure no other services use the same ports
+#    - Check with: netstat -tuln | grep <port>
+#
+# 5. Volumes still work perfectly
+#    - Both named volumes and bind mounts supported
+#
+# USAGE:
+#
+#   # Start all services
+#   docker-compose -f docker-compose-host-network.yml up -d
+#
+#   # View logs
+#   docker-compose -f docker-compose-host-network.yml logs -f
+#
+#   # Stop all services
+#   docker-compose -f docker-compose-host-network.yml down
+#
+#   # Access services from host or other containers:
+#   psql -h localhost -p 5432 -U postgres myapp
+#   redis-cli -h localhost -p 6379
+#   curl http://localhost:8080
+#   curl http://localhost:3000
+#
+# ADVANTAGES:
+#   ✅ Works in gVisor environment
+#   ✅ All services can communicate
+#   ✅ Simple and predictable
+#
+# DISADVANTAGES:
+#   ❌ No network isolation between containers
+#   ❌ Port conflicts more likely
+#   ❌ Can't use service names for DNS resolution
