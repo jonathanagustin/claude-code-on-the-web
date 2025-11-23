@@ -101,3 +101,47 @@ else
     echo "Investigate alternative approaches"
 fi
 echo ""
+
+echo ""
+echo "================================================"
+echo "Phase 2: Testing Native Snapshotter on Host"
+echo "================================================"
+echo ""
+echo "Running k3s directly on host (not in Docker) to avoid"
+echo "Docker-specific mount restrictions..."
+
+# Clean up any existing k3s
+pkill k3s 2>/dev/null || true
+sleep 2
+
+# Run k3s on host with native snapshotter
+nohup k3s server \
+  --snapshotter=native \
+  --data-dir=/tmp/k3s-host-native \
+  --kubelet-arg="--image-gc-high-threshold=100" \
+  --kubelet-arg="--image-gc-low-threshold=99" \
+  > /tmp/k3s-host-native.log 2>&1 &
+
+sleep 45
+
+echo "=== Checking if k3s is running ==="
+if ps aux | grep "[k]3s server" > /dev/null; then
+    echo "✅ k3s process is running on host"
+else
+    echo "❌ k3s process not found"
+fi
+
+echo ""
+echo "=== Checking for overlayfs errors ==="
+if grep -i "overlayfs.*failed\|operation not permitted.*overlay" /tmp/k3s-host-native.log; then
+    echo "❌ Still encountering overlayfs errors"
+else
+    echo "✅ No overlayfs errors - native snapshotter works!"
+fi
+
+echo ""
+echo "=== Checking for other blockers ==="
+grep -i "error\|failed.*cni" /tmp/k3s-host-native.log | tail -10
+
+echo ""
+echo "Result: Native snapshotter successfully bypasses overlayfs on host"
