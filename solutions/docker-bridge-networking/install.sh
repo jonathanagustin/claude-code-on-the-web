@@ -13,6 +13,43 @@ echo "Docker Bridge Networking Solution - Install"
 echo "================================================"
 echo
 
+# =============================================================================
+# STEP 1: Install Docker if not present
+# =============================================================================
+if ! command -v dockerd &> /dev/null; then
+    echo "Docker not found. Installing docker.io..."
+    export DEBIAN_FRONTEND=noninteractive
+
+    echo "Updating package lists..."
+    apt-get update -qq 2>&1 | grep -v "Failed to fetch" || true
+
+    echo "Installing docker.io, docker-buildx, docker-compose..."
+    apt-get install -y -qq docker.io docker-buildx docker-compose 2>&1 | grep -v "debconf" || true
+
+    if command -v dockerd &> /dev/null; then
+        echo "✅ Docker installed successfully"
+        docker --version
+        docker buildx version &> /dev/null && echo "  - docker-buildx: $(docker buildx version)"
+        command -v docker-compose &> /dev/null && echo "  - docker-compose: $(docker-compose --version)"
+    else
+        echo "❌ Failed to install Docker"
+        exit 1
+    fi
+else
+    echo "✅ Docker already installed"
+    docker --version
+    docker buildx version &> /dev/null && echo "  - docker-buildx: $(docker buildx version)"
+    command -v docker-compose &> /dev/null && echo "  - docker-compose: $(docker-compose --version)"
+fi
+
+echo
+
+# =============================================================================
+# STEP 2: Install Bridge Networking Solution
+# =============================================================================
+echo "Installing bridge networking solution..."
+echo
+
 # Create installation directory
 echo "Creating installation directory..."
 mkdir -p "$INSTALL_DIR"
@@ -252,10 +289,11 @@ echo "================================================"
 echo "Installation Complete!"
 echo "================================================"
 echo
-echo "Installed Files:"
-echo "  - $INSTALL_DIR/netlink_intercept.so"
-echo "  - $INSTALL_DIR/clean-docker-network.sh"
-echo "  - $BIN_DIR/docker-bridge"
+echo "Installed Components:"
+echo "  - Docker: $(docker --version)"
+echo "  - Netlink interceptor: $INSTALL_DIR/netlink_intercept.so"
+echo "  - Cleanup script: $INSTALL_DIR/clean-docker-network.sh"
+echo "  - Wrapper command: $BIN_DIR/docker-bridge"
 echo
 echo "Usage:"
 echo "  docker-bridge start    # Start Docker with bridge support"
