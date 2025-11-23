@@ -1,0 +1,28 @@
++ ip link add name test-bridge type bridge
++ ip link set test-bridge up
++ ip addr add 172.20.0.1/24 dev test-bridge
++ ip link add veth-test0 type veth peer name veth-test1
++ ip link set veth-test0 master test-bridge
++ ip link set veth-test0 up
++ ip link set veth-test1 up
++ ip netns add test-ns
++ ip link set veth-test1 netns test-ns
++ ip netns exec test-ns ip addr add 172.20.0.2/24 dev veth-test1
++ ip netns exec test-ns ip link set veth-test1 up
++ ip netns exec test-ns ip route add default via 172.20.0.1
++ ip netns exec test-ns ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 
+    link/loopback 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 127.0.0.1/8 scope global dynamic 
+    inet6 ::1/128 scope global dynamic 
+2: veth-test1: <UP,LOWER_UP> mtu 1500 
+    link/ether 9a:78:48:11:05:47 brd ff:ff:ff:ff:ff:ff
+    inet 172.20.0.2/24 scope global dynamic 
++ echo ---
+---
++ ip netns exec test-ns ping -c 2 172.20.0.1
+exec of "ping" failed: No such file or directory
++ echo 'Ping failed but let'\''s see why'
+Ping failed but let's see why
++ ip netns del test-ns
++ ip link del test-bridge
