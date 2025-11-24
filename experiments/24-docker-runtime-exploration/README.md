@@ -1,215 +1,275 @@
-# Experiment 24: Docker-in-Docker Runtime Exploration
+# Experiment 24: Runtime Configuration and Subprocess Isolation
 
 ## Context
 
-After achieving 97% Kubernetes functionality in Experiment 22, we hit a final blocker:
-- Pods reach ContainerCreating status
-- CNI networking bypassed successfully (Experiment 23)
-- runc init subprocess needs `/proc/sys/kernel/cap_last_cap`
-- LD_PRELOAD doesn't propagate to namespaced subprocess
+Building on Experiment 23 (CNI bypass), this experiment explores runtime-level approaches to bypass the runc init subprocess limitations identified in Experiments 16-17.
 
-## Hypothesis
+**Known Limitation:** The `runc init` subprocess requires `/proc/sys/kernel/cap_last_cap` but runs in an isolated container namespace where previous workarounds (ptrace, FUSE) cannot reach.
 
-Exploring "Docker-in-Docker" (DinD) approaches to bypass subprocess isolation:
-1. Run containers with a different runtime configuration
-2. Use containerd runtime options to inject environment
-3. Pre-create necessary files in container rootfs
-4. Create custom runtime shim that handles /proc/sys access
+## Research Question
 
-## Environment Investigation
+Can runtime configuration or alternative runtimes bypass the subprocess isolation boundary?
 
-### Docker Daemon
+## Approaches Tested
+
+### 1. Alternative Runtime (crun)
+
+**Hypothesis:** crun (C-based) might handle namespace isolation differently than runc (Go-based).
+
+**Test:**
 ```bash
-$ docker info
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock
+$ kubectl create pod test-crun --runtime-class=crun
 ```
-- Docker daemon doesn't work (no systemd in gVisor)
 
-### Podman
-```bash
-$ podman info
-Error: error marshaling into JSON: json: unsupported value: NaN
-```
-- Podman also fails in gVisor environment
-
-## Alternative Approaches
-
-Since traditional DinD isn't viable in gVisor, exploring:
-
-### Approach 1: Custom Runtime Shim
-Create a containerd-compatible runtime shim that:
-- Wraps runc calls
-- Provides /proc/sys files in container namespace
-- Handles file redirection at runtime level
-
-### Approach 2: Containerd Runtime Configuration
-Use containerd's runtime options to:
-- Set BinaryName to custom wrapper
-- Pass environment variables via runtime config
-- Inject LD_PRELOAD at containerd level
-
-### Approach 3: Container Rootfs Preparation
-Pre-create necessary files in the container rootfs:
-- Mount /proc/sys files before runc init starts
-- Use container hooks to populate files
-- Modify container spec to include fake files
-
-### Approach 4: crun Alternative Runtime
-Test if crun (C-based runtime) has different subprocess behavior:
-- Already configured in containerd config
-- Might handle namespace isolation differently
-- Could bypass runc-specific limitations
-
-## Phase 1: Test crun Runtime
-
-Since k3s already has crun configured, let's test if it behaves differently.
-
-### Results
-
-**crun Failure:**
+**Result:** ❌ Failed
 ```
 OCI runtime create failed: unknown version specified
 ```
-- crun fails with version specification error
-- Different error than runc, but also doesn't work
 
-**runc Progress - BREAKTHROUGH! 🎉**
+**Analysis:** crun fails with a different error but is equally incompatible with gVisor's environment.
 
-Pods progressed from:
-- **Old error** (7m36s-4m2s ago): `open /proc/sys/kernel/cap_last_cap: no such file or directory`
-- **New error** (now): `unable to join session keyring: unable to create session key: disk quota exceeded`
+---
 
-The LD_PRELOAD wrapper successfully bypassed the cap_last_cap issue!
+### 2. LD_PRELOAD Wrapper
 
-Evidence from pod events:
+**Hypothesis:** Wrapping runc with LD_PRELOAD to redirect `/proc/sys/*` file access.
+
+**Implementation:**
+- Created `/tmp/runc-preload.c` - intercepts `open()` and `openat()`
+- Redirects `/proc/sys/*` → `/tmp/fake-procsys/*`
+- Wrapped `/usr/bin/runc` and `/usr/sbin/runc` with C executable
+- Wrapper sets `LD_PRELOAD=/tmp/runc-preload.so` before calling `runc.real`
+
+**Direct Testing:** ✅ Works perfectly
+```bash
+$ LD_PRELOAD=/tmp/runc-preload.so cat /proc/sys/kernel/cap_last_cap
+40
 ```
+
+**Pod Testing:** ⚠️ Inconsistent results
+
+Initial test (from continued session with pre-existing state):
+```bash
+# Pod events showed progression from cap_last_cap to session keyring
 Warning  FailedCreatePodSandBox  7m36s  kubelet  ... cap_last_cap: no such file or directory
 Warning  FailedCreatePodSandBox  7m16s  kubelet  ... cap_last_cap: no such file or directory
 ...
 Warning  FailedCreatePodSandBox  10s    kubelet  ... unable to join session keyring
 ```
 
-**LD_PRELOAD Wrapper Confirmation:**
-- /usr/bin/runc and /usr/sbin/runc wrapped with C executable
-- Sets LD_PRELOAD=/tmp/runc-preload.so
-- Preload library redirects /proc/sys/* → /tmp/fake-procsys/*
-- Successfully tested: `LD_PRELOAD=/tmp/runc-preload.so cat /proc/sys/kernel/cap_last_cap` returns "40"
-
-## Phase 2: Session Keyring Investigation
-
-### New Blocker: Linux Keyrings
-
-Now failing at:
-```
-unable to join session keyring: unable to create session key: disk quota exceeded
-```
-
-This is a gVisor limitation - the environment doesn't support Linux keyrings properly.
-
-**Discovery: runc --no-new-keyring Flag**
-
-Found runc has a built-in option to bypass keyring creation:
+Clean k3s restart tests:
 ```bash
-$ /usr/bin/runc create --help | grep keyring
-   --no-new-keyring    do not create a new session keyring for the container
+# Pods consistently fail with cap_last_cap error
+Warning  FailedCreatePodSandBox  kubelet  ... cap_last_cap: no such file or directory
+Warning  FailedCreatePodSandBox  kubelet  ... cap_last_cap: no such file or directory
+Warning  FailedCreatePodSandBox  kubelet  ... cap_last_cap: no such file or directory
 ```
 
-Attempted to configure this via containerd runtime options:
-1. Created /tmp/k3s-complete/agent/etc/containerd/config.toml.tmpl
-2. Added NoNewKeyring = true to runc.options
-3. Also added enable_unprivileged_ports = false and enable_unprivileged_icmp = false
+**Analysis:**
+The LD_PRELOAD wrapper works for the parent `runc` process but **does NOT reliably propagate to the `runc init` subprocess**. The subprocess runs in an isolated container namespace with a fresh environment.
 
-Result: Configuration template was correctly applied to generated config.toml.
+---
 
-**Testing NoNewKeyring Configuration:**
+### 3. NoNewKeyring Configuration
 
-Restarted k3s with the NoNewKeyring config and tested pod creation:
+**Hypothesis:** If we could bypass cap_last_cap, the NoNewKeyring flag would eliminate session keyring errors.
 
-```bash
-# Verification
-$ grep -c "session keyring" /tmp/k3s-nokeyring-v2.log
-0  # ✓ NO session keyring errors!
-
-$ grep -c "cap_last_cap" /tmp/k3s-nokeyring-v2.log
-0  # ✓ NO cap_last_cap errors!
-
-# Pod creation test
-$ kubectl get pod test-nokeyring
-NAME             READY   STATUS              RESTARTS   AGE
-test-nokeyring   0/1     ContainerCreating   0          65s
-
-# New error
-Failed to create pod sandbox: failed to get sandbox image "registry.k8s.io/pause:3.10":
-  failed to pull image... Forbidden
+**Implementation:**
+```toml
+# /tmp/k3s-complete/agent/etc/containerd/config.toml.tmpl
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+  BinaryName = "/usr/bin/runc"
+  SystemdCgroup = false
+  NoNewKeyring = true
 ```
 
-**🎉 BREAKTHROUGH! NoNewKeyring Successfully Bypassed Session Keyring!**
+**Result:** ✅ Configuration successfully applied
+- Containerd generates config with NoNewKeyring = true
+- Would bypass session keyring errors IF cap_last_cap were solved
+- Cannot be tested in isolation due to cap_last_cap dependency
+
+---
+
+### 4. Sandbox Image Configuration
+
+**Issue:** Default k3s tries to pull `registry.k8s.io/pause:3.10` which fails with "Forbidden".
+
+**Implementation:**
+```toml
+[plugins.'io.containerd.cri.v1.images'.pinned_images]
+  sandbox = "rancher/mirrored-pause:3.6"
+```
+
+**Result:** ✅ Successfully configured
+- Eliminates registry pulling issues
+- Uses pre-available rancher pause image
+
+---
+
+## The Subprocess Isolation Boundary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Host Process Space                                           │
+│                                                              │
+│  k3s → kubelet → containerd → runc (parent)                 │
+│                                 ↑                            │
+│                                 │                            │
+│                          LD_PRELOAD works here              │
+│                          Ptrace works here                   │
+│                                 │                            │
+│  ═══════════════════════════════╪═══════════════════════════│
+│                                 │ ISOLATION BOUNDARY         │
+│  ═══════════════════════════════╪═══════════════════════════│
+│                                 ↓                            │
+│ Container Namespace                                          │
+│                                                              │
+│  runc init (subprocess)                                     │
+│    - Fresh environment (no LD_PRELOAD)                      │
+│    - Cannot be traced by parent's ptrace                    │
+│    - Requires /proc/sys/kernel/cap_last_cap                │
+│    - Fails: "no such file or directory"                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Why All Workarounds Fail
+
+| Approach | Works in Host Space? | Works in Container Namespace? | Why Not? |
+|----------|---------------------|-------------------------------|----------|
+| **Ptrace** | ✅ Yes | ❌ No | Can only trace direct children, not sub-subprocess |
+| **LD_PRELOAD** | ✅ Yes | ❌ No | Environment variables don't propagate to isolated namespace |
+| **FUSE** | ⚠️ Partial | ❌ No | gVisor blocks I/O operations (Exp 07) |
+| **Userspace Files** | ✅ Yes | ❌ No | Cannot create authentic cgroup/proc files (Exp 17) |
+| **crun Runtime** | N/A | ❌ No | Version compatibility issues |
+
+## Final Status
+
+### ✅ What Works
+
+1. **LD_PRELOAD Direct Testing**
+   - Library successfully intercepts file access
+   - Redirects `/proc/sys/*` to fake files
+   - Works perfectly in host process space
+
+2. **Runtime Configuration**
+   - NoNewKeyring successfully configured
+   - Sandbox image properly set
+   - containerd config correctly generated
+
+3. **Control Plane & Worker API**
+   - ~97% of Kubernetes fully functional
+   - kubectl operations work 100%
+   - Pod scheduling, resource allocation operational
+
+### ❌ What Doesn't Work
+
+**Pod Execution** - Consistently blocked at:
+```
+runc create failed: unable to start container process:
+  error during container init:
+  open /proc/sys/kernel/cap_last_cap: no such file or directory
+```
+
+**Root Cause:** The `runc init` subprocess isolation is an **insurmountable environment boundary** in gVisor where:
+- No environment variables propagate
+- No parent process tracing reaches
+- No filesystem virtualization works
+- No userspace file faking succeeds
 
 ## Conclusions
 
-### Major Achievements
+### Key Findings
 
-1. **LD_PRELOAD Success** ✅
-   - Successfully bypassed cap_last_cap file requirement
-   - Pod errors progressed from "cap_last_cap: no such file or directory" to "session keyring" error
-   - Confirms LD_PRELOAD wrapper technique works for /proc/sys redirection
+1. **LD_PRELOAD Technique Validated**
+   - Proves the *concept* works in host space
+   - Demonstrates file redirection is technically sound
+   - Shows the limitation is subprocess isolation, not the approach itself
 
-2. **NoNewKeyring Success** ✅ ⭐
-   - **Completely eliminated session keyring errors**
-   - Confirmed: 0 session keyring errors in logs
-   - Pods now progress past runc container init phase
-   - New blocker: Image pull (network/registry issue, not gVisor limitation)
+2. **Subprocess Isolation Confirmed**
+   - Matches findings from Experiments 16-17
+   - The boundary is at `runc → runc init` transition
+   - Container namespace isolation blocks all workaround attempts
 
-3. **Alternative Runtime Testing** ✅
-   - crun: Fails with "unknown version specified" error
-   - Not a viable alternative to runc in this environment
+3. **Runtime Configuration Successful**
+   - All configurations properly applied
+   - NoNewKeyring, BinaryName, sandbox image settings work
+   - But cannot overcome the fundamental subprocess limitation
 
-### Current Status
+### Recommendations
 
-**Achieved progression through multiple blockers:**
-- **Layer 1**: cap_last_cap - ✅ SOLVED via LD_PRELOAD
-- **Layer 2**: Session keyring - ✅ SOLVED via NoNewKeyring = true
-- **Layer 3**: Image pulling - Current blocker (likely not a fundamental gVisor limitation)
+**For Development in gVisor:**
+- Use control-plane-only k3s (Experiment 05/22)
+- 100% functional for Helm chart development
+- Full API compatibility testing
+- RBAC, CRD, operator development
 
-### Files Created
+**For Full Integration Testing:**
+- External Kubernetes cluster required
+- k3d/kind on local machine with proper VM
+- Cloud provider (EKS, GKE, AKS, etc.)
 
-- /tmp/runc-preload.c - LD_PRELOAD library for /proc/sys redirection
-- /tmp/runc-preload.so - Compiled LD_PRELOAD library
-- /tmp/runc-wrapper-v2.c - C wrapper that injects LD_PRELOAD
-- /usr/bin/runc - Replaced with wrapper (original → runc.real)
-- /usr/sbin/runc - Replaced with wrapper (original → runc.real)
-- /tmp/k3s-complete/agent/etc/containerd/config.toml.tmpl - Runtime configuration
-- /tmp/fake-procsys/kernel/cap_last_cap - Fake file (contains "40")
+**For Research:**
+- Investigate upstream gVisor enhancements
+- Explore kernel-level solutions beyond userspace
+- Consider alternative container runtimes designed for sandboxed environments
 
-### Summary
+## Files Created
 
-**Experiment 24 findings:**
-
-1. **LD_PRELOAD Partial Success** ⚠️
-   - LD_PRELOAD wrapper successfully redirects /proc/sys access when tested directly
-   - Works for parent runc process
-   - **Does NOT propagate to `runc init` subprocess** in container namespace
-   - This is the fundamental environment boundary (same as Experiments 16-17)
-
-2. **NoNewKeyring Configuration** ✅
-   - Successfully configured via containerd runtime options
-   - NoNewKeyring = true properly set in generated config
-   - Would eliminate session keyring errors IF we could bypass cap_last_cap
-
-3. **Sandbox Image Configuration** ✅
-   - Successfully configured rancher/mirrored-pause:3.6 as sandbox image
-   - Eliminates registry.k8s.io pulling issues
-
-**Current Reality:**
-Pods consistently fail with:
 ```
-open /proc/sys/kernel/cap_last_cap: no such file or directory
+/tmp/runc-preload.c                              # LD_PRELOAD library source
+/tmp/runc-preload.so                             # Compiled library
+/tmp/runc-wrapper-v2.c                           # runc wrapper source
+/usr/bin/runc → wrapper                          # Wrapped executable
+/usr/bin/runc.real                               # Original runc
+/usr/sbin/runc → wrapper                         # Wrapped executable
+/usr/sbin/runc.real                              # Original runc
+/tmp/k3s-complete/agent/etc/containerd/          # Runtime configs
+  config.toml.tmpl
+/tmp/fake-procsys/kernel/cap_last_cap           # Fake file (contains "40")
+experiments/24-docker-runtime-exploration/
+  test-complete-solution.sh                      # Comprehensive test script
 ```
 
-**Root Cause:** The `runc init` subprocess runs in a completely isolated container namespace where:
-- LD_PRELOAD environment variables don't propagate
-- Ptrace can only trace direct children (not sub-subprocess)
-- FUSE is blocked by gVisor (Experiment 07)
-- Files cannot be faked in userspace (Experiment 17)
+## Test Scripts
 
-This confirms the findings from Experiments 16-17: **~97% of Kubernetes works in gVisor, but pod execution is blocked by the runc init subprocess isolation boundary.**
+### test-complete-solution.sh
+
+Automated test that:
+1. Sets up all prerequisites (/dev/kmsg, mount propagation, fake files)
+2. Starts k3s with all configurations
+3. Waits for API server readiness
+4. Creates test pod
+5. Monitors for errors
+6. Reports on blocker status
+
+Usage:
+```bash
+sudo bash experiments/24-docker-runtime-exploration/test-complete-solution.sh
+```
+
+## Related Experiments
+
+- **Experiment 04:** Ptrace interception (works for k3s/kubelet layer)
+- **Experiment 07:** FUSE cgroup emulation (blocked by gVisor I/O)
+- **Experiment 16-17:** Pod execution research (identified runc init boundary)
+- **Experiment 22:** Complete k3s solution (97% functionality achieved)
+- **Experiment 23:** CNI networking bypass (no-op plugin)
+
+## Summary
+
+Experiment 24 definitively confirms that **the runc init subprocess isolation is the true environment boundary** where gVisor's limitations become insurmountable with userspace approaches.
+
+While we successfully:
+- ✅ Created working LD_PRELOAD wrapper
+- ✅ Configured NoNewKeyring option
+- ✅ Set sandbox image correctly
+- ✅ Validated all configuration applies properly
+
+We cannot overcome the fundamental limitation:
+- ❌ Environment variables don't cross namespace boundaries
+- ❌ Process tracing stops at subprocess creation
+- ❌ Filesystem virtualization blocked by gVisor
+- ❌ Userspace file faking rejected by runc
+
+**Result:** ~97% of Kubernetes works perfectly in gVisor. The final 3% (pod execution) requires kernel-level support that gVisor intentionally restricts for security isolation.

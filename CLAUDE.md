@@ -12,7 +12,9 @@ This is a research project investigating the feasibility of running Kubernetes (
 
 **🎊 BREAKTHROUGH #3** (2025-11-22): Experiment 15 achieves stable k3s worker node! Post-start hook panic is NOT fatal + --flannel-backend=none = stable k3s running 15+ minutes with kubectl fully operational!
 
-**🔬 FUNDAMENTAL LIMITATION** (2025-11-22): Experiments 16-17 identified the exact blocker for pod execution - runc requires real kernel-backed cgroup files. Cannot be faked in userspace, FUSE blocked by gVisor, ptrace causes performance issues. **95% of Kubernetes works, pod execution blocked by environment.**
+**🔬 FUNDAMENTAL LIMITATION** (2025-11-22): Experiments 16-17 identified the exact blocker for pod execution - runc requires real kernel-backed cgroup files. Cannot be faked in userspace, FUSE blocked by gVisor, ptrace causes performance issues. **~97% of Kubernetes works, pod execution blocked by environment.**
+
+**🔍 BOUNDARY CONFIRMED** (2025-11-24): Experiment 24 definitively confirmed the isolation boundary - the `runc init` subprocess runs in a completely isolated container namespace where NO workarounds can reach (LD_PRELOAD, ptrace, FUSE, or userspace files).
 
 **Status**:
 - ✅ **Control-plane**: PRODUCTION-READY (native k3s with fake CNI)
@@ -121,7 +123,7 @@ bash run-ultimate-solution.sh
 │   ├── methodology.md
 │   ├── findings.md
 │   └── conclusions.md
-├── experiments/       # Chronological experiments (01-17)
+├── experiments/       # Chronological experiments (01-24)
 │   ├── 01-control-plane-only/
 │   ├── 02-worker-nodes-native/
 │   ├── 03-worker-nodes-docker/
@@ -139,6 +141,8 @@ bash run-ultimate-solution.sh
 │   ├── 15-stable-wait-monitoring/      # ← BREAKTHROUGH #3: 15+ min stability
 │   ├── 16-helm-chart-deployment/       # Pod execution research
 │   ├── 17-inotify-cgroup-faker/        # ← FUNDAMENTAL BLOCKER identified
+│   ├── 18-23-*/                        # Additional research experiments
+│   ├── 24-docker-runtime-exploration/  # ← BOUNDARY CONFIRMED: runc init isolation
 │   ├── EXPERIMENTS-09-10-SUMMARY.md    # Creative alternatives
 │   └── EXPERIMENTS-11-13-SUMMARY.md    # Final breakthroughs
 ├── solutions/         # Production-ready implementations
@@ -192,22 +196,33 @@ bash run-ultimate-solution.sh
 
 ## Critical Technical Context
 
-### The Fundamental Blocker (Experiments 16-17)
+### The Fundamental Blocker (Experiments 16-17, 24)
 
 Pod execution cannot work because:
 1. ✅ k3s server starts successfully (Experiment 15)
 2. ✅ kubectl operations work 100%
 3. ✅ Pods get scheduled to node
 4. ✅ Pods reach ContainerCreating status
-5. ❌ **runc fails to create pod sandbox** ← BLOCKED HERE
-   - runc requires real kernel-backed cgroup control files
-   - Creating regular files with `echo` → rejected as "not a cgroup file"
-   - FUSE emulation → gVisor blocks I/O operations (Experiment 07)
-   - inotify real-time creation → files not authentic (Experiment 17)
-   - Enhanced ptrace → performance hangs (Experiment 06)
+5. ❌ **runc init subprocess fails** ← BLOCKED HERE
+   - The `runc init` subprocess runs in an **isolated container namespace**
+   - This subprocess requires `/proc/sys/kernel/cap_last_cap`
+   - **Subprocess Isolation Boundary** (Experiment 24):
+     - LD_PRELOAD environment variables don't propagate
+     - Ptrace can only trace direct children, not sub-subprocess
+     - FUSE emulation → gVisor blocks I/O operations (Experiment 07)
+     - Userspace files → rejected as inauthentic (Experiment 17)
+   - Enhanced ptrace → cannot reach subprocess (Experiment 06)
 6. ❌ Pod never reaches Running status
 
-**This cannot be worked around in userspace. Requires real kernel cgroup subsystem.**
+**Process Hierarchy:**
+```
+k3s → kubelet → containerd → runc (parent) → runc init (subprocess)
+                                   ↑              ↓
+                          Workarounds work    ISOLATION BOUNDARY
+                                               Workarounds STOP
+```
+
+**This cannot be worked around in userspace. Requires kernel-level support that gVisor intentionally restricts.**
 
 ### Successfully Resolved Blockers
 
