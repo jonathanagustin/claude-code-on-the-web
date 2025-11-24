@@ -1,0 +1,32 @@
+# Containerd configuration for gVisor compatibility
+# Disables cgroup namespace which gVisor kernel doesn't support
+
+[plugins.'io.containerd.cri.v1.runtime']
+  enable_unprivileged_ports = false
+  enable_unprivileged_icmp = false
+
+[plugins.'io.containerd.cri.v1.images']
+  snapshotter = "native"
+
+[plugins.'io.containerd.cri.v1.images'.pinned_images]
+  sandbox = "rancher/mirrored-pause:3.6"
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+  BinaryName = "/usr/bin/runc"
+  SystemdCgroup = false
+  NoNewKeyring = true
+  # Disable cgroup namespace - gVisor kernel doesn't support it
+  # Note: This is a runtime option, actual namespace configuration
+  # is done at the OCI spec level by containerd
+
+# Alternative approach: Use custom runtime with patched config
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc-gvisor]
+  runtime_type = "io.containerd.runc.v2"
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc-gvisor.options]
+  BinaryName = "/usr/bin/runc-gvisor-wrapper"
+  SystemdCgroup = false
+  NoNewKeyring = true
