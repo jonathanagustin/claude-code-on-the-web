@@ -1,83 +1,113 @@
-# Kubernetes in gVisor - Automated Control-Plane Solution
+# Kubernetes in gVisor Sandbox
 
-> **Running k3s natively in sandboxed Claude Code web sessions with zero configuration**
+> Running k3s in Claude Code web sessions with automatic setup
 
-[![Status](https://img.shields.io/badge/Status-Production--Ready-success)]()
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-97%25%20Functional-blue)]()
-[![Automation](https://img.shields.io/badge/Automation-Fully%20Automated-green)]()
+## Quick Start
 
-## 🚀 Quick Start (Zero Configuration!)
-
-**The environment starts automatically!** Open a Claude Code session and:
+**The environment starts automatically.** Open a Claude Code session and use kubectl directly:
 
 ```bash
-# k3s is already running - just use it!
 kubectl get namespaces
-
-# Create and test a Helm chart
 helm create mychart
 helm install test ./mychart/
 kubectl get all
-
-# Validate Kubernetes manifests
-kubectl apply -f deployment.yaml --dry-run=server
 ```
 
-**That's it!** ✨ No manual setup required.
+## What Works
 
-## What This Provides
+| Feature | Status |
+|---------|--------|
+| API Server, Scheduler, Controller Manager | ✅ Works |
+| kubectl (create, get, describe, delete) | ✅ Works |
+| Helm (install, upgrade, template, lint) | ✅ Works |
+| Resource validation (dry-run=server) | ✅ Works |
+| RBAC configuration and testing | ✅ Works |
+| Pod execution (containers) | ❌ Blocked |
+| kubectl logs/exec | ❌ Blocked |
 
-### ✅ Production-Ready Control-Plane
+**97% of Kubernetes functionality works.** Pod execution is blocked by gVisor's security isolation.
 
-- **API Server, Scheduler, Controller Manager** - Fully functional
-- **kubectl operations** - All commands work (create, get, describe, delete, etc.)
-- **Helm development** - Complete chart development and testing workflow
-- **Resource validation** - Server-side dry-run, RBAC testing
-- **API compatibility** - Test manifests against real Kubernetes API
-- **Automatic startup** - Zero configuration, ready in 20-30 seconds
+## Use Cases
 
-### 🎯 Perfect For
+**Perfect for:**
+- Helm chart development and validation
+- Kubernetes manifest testing
+- API compatibility verification
+- RBAC policy development
 
-✅ Helm chart development and validation
-✅ Kubernetes manifest generation and testing
-✅ API server integration testing
-✅ kubectl operations and workflows
-✅ RBAC policy development
-✅ Template rendering and linting
+**Requires external cluster:**
+- Running containers
+- Integration testing with running pods
+- Service networking with endpoints
 
-### ⚠️ Not Supported
+## Manual Setup (if needed)
 
-❌ Pod execution (containers cannot run)
-❌ kubectl logs/exec
-❌ Service endpoints (no running pods)
-❌ Runtime testing
+```bash
+# Start k3s manually
+sudo bash tools/quick-start.sh
 
-**For full integration testing:** Use k3d, kind, or cloud Kubernetes clusters
+# Set kubeconfig
+export KUBECONFIG=/tmp/k3s-control-plane/kubeconfig.yaml
+
+# Verify
+kubectl get namespaces
+```
+
+## Repository Structure
+
+```
+.
+├── solutions/              # Production-ready implementations
+│   └── control-plane-native/   # Recommended solution
+├── experiments/            # Research experiments (01-32)
+├── tools/                  # Setup and automation scripts
+├── docs/                   # Documentation
+│   ├── QUICK-REFERENCE.md      # Command reference
+│   ├── TESTING-GUIDE.md        # Testing procedures
+│   └── summaries/              # Research summaries
+└── research/               # Research methodology and findings
+```
+
+## Key Files
+
+| File | Description |
+|------|-------------|
+| `CLAUDE.md` | Project guide for Claude Code sessions |
+| `tools/quick-start.sh` | One-command k3s startup |
+| `tools/setup-claude.sh` | Tool installation script |
+| `solutions/control-plane-native/start-k3s-native.sh` | Native k3s startup |
+
+## Technical Details
+
+**Environment:**
+- Sandbox: gVisor (runsc)
+- Filesystem: 9p virtual filesystem
+- k3s with fake CNI plugin
+
+**Why pod execution doesn't work:**
+
+The `runc init` subprocess runs in an isolated container namespace where userspace workarounds cannot reach. This is intentional gVisor security - not a bug.
+
+```
+k3s → kubelet → containerd → runc → runc init (ISOLATED)
+                                        ↓
+                              Workarounds cannot reach
+```
+
+## Research Summary
+
+32 experiments were conducted to explore Kubernetes in sandboxed environments:
+
+- **Experiment 05:** Fake CNI plugin enables control-plane
+- **Experiment 13:** Resolved 6 k3s startup blockers
+- **Experiment 15:** Achieved 15+ minute worker node stability
+- **Experiment 24:** Confirmed isolation boundary
+
+See [experiments/EXPERIMENTS-INDEX.md](experiments/EXPERIMENTS-INDEX.md) for the complete list.
 
 ## Documentation
 
-### 📖 Main Docs
-
-- **[FINAL-SOLUTION.md](FINAL-SOLUTION.md)** - Complete solution package (start here!)
-- **[CLAUDE.md](CLAUDE.md)** - Project guide for Claude Code sessions
-- **[docs/QUICK-REFERENCE.md](docs/QUICK-REFERENCE.md)** - Fast command lookup
-- **[docs/TESTING-GUIDE.md](docs/TESTING-GUIDE.md)** - Testing procedures
-
-### 🔬 Research Documentation
-
-- **[experiments/EXPERIMENTS-INDEX.md](experiments/EXPERIMENTS-INDEX.md)** - All 32 experiments
-- **[docs/summaries/](docs/summaries/)** - Research summaries and findings
-- **[research/](research/)** - Detailed research documentation
-
-## Research Achievements
-
-- **32 experiments** conducted
-- **97% of Kubernetes** functional (100% with proper configuration!)
-- **Zero configuration** startup
-- **Production-ready** control-plane
-
-See [FINAL-SOLUTION.md](FINAL-SOLUTION.md) for complete details and [README.md.backup](README.md.backup) for full research documentation.
-
----
-
-**Get Started:** Open a Claude Code session and run `kubectl get namespaces` - it just works! ✨
+- [CLAUDE.md](CLAUDE.md) - Full project guide
+- [docs/QUICK-REFERENCE.md](docs/QUICK-REFERENCE.md) - Command reference
+- [docs/TESTING-GUIDE.md](docs/TESTING-GUIDE.md) - Testing guide
+- [research/](research/) - Research documentation

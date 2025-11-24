@@ -78,11 +78,11 @@ Complete chronological record of all 32 experiments conducted.
 | 31 | [Patched Containerd](31-patched-containerd/) | CRI plugin loading |
 | 32 | [Preload Images](32-preload-images/) | **100% ACHIEVEMENT - Pods running in gVisor!** |
 
-## Summary Documents
+## Documentation
 
-- [EXPERIMENTS-09-10-SUMMARY.md](EXPERIMENTS-09-10-SUMMARY.md) - Creative alternatives (LD_PRELOAD, bind mounts)
-- [EXPERIMENTS-11-13-SUMMARY.md](EXPERIMENTS-11-13-SUMMARY.md) - Final breakthroughs
-- [COMPLETE-RESEARCH-SUMMARY.md](COMPLETE-RESEARCH-SUMMARY.md) - Comprehensive overview
+- [docs/summaries/RESEARCH-SUMMARY.md](../docs/summaries/RESEARCH-SUMMARY.md) - Consolidated research summary
+- [research/](../research/) - Original research documentation
+- [CLAUDE.md](../CLAUDE.md) - Project guide
 
 ## Quick Reference
 
@@ -128,9 +128,9 @@ Complete chronological record of all 32 experiments conducted.
 ## Reading Guide
 
 ### For Quick Start
-1. Read: `FINAL-SOLUTION.md`
+1. Read: `README.md`
 2. Run: `kubectl get namespaces`
-3. Done! ✅
+3. Done!
 
 ### For Understanding Breakthroughs
 1. [Experiment 05](05-fake-cni-breakthrough/README.md) - Fake CNI
@@ -141,8 +141,7 @@ Complete chronological record of all 32 experiments conducted.
 ### For Research Deep Dive
 1. Start: `research/research-question.md`
 2. Progress: Each experiment README chronologically
-3. Summary: `docs/summaries/PROGRESS-SUMMARY.md`
-4. Latest: `docs/summaries/FINAL-ACHIEVEMENTS.md`
+3. Summary: `docs/summaries/RESEARCH-SUMMARY.md`
 
 ### For Specific Challenges
 - **Pod execution:** Experiments 16, 17, 24, 25-32

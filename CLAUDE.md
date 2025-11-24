@@ -141,43 +141,29 @@ bash run-ultimate-solution.sh
 │   ├── methodology.md
 │   ├── findings.md
 │   └── conclusions.md
-├── experiments/       # Chronological experiments (01-24)
+├── experiments/       # Chronological experiments (01-32)
 │   ├── 01-control-plane-only/
-│   ├── 02-worker-nodes-native/
-│   ├── 03-worker-nodes-docker/
-│   ├── 04-ptrace-interception/
 │   ├── 05-fake-cni-breakthrough/       # ← BREAKTHROUGH #1: Fake CNI
-│   ├── 06-enhanced-ptrace-statfs/
-│   ├── 07-fuse-cgroup-emulation/
-│   ├── 08-ultimate-hybrid/
-│   ├── 09-ld-preload-intercept/        # Library-level interception
-│   ├── 10-bind-mount-cgroups/          # Direct bind mount approach
-│   ├── 11-tmpfs-cgroup-mount/          # tmpfs discovery
-│   ├── 12-complete-solution/           # Flag discovery
-│   ├── 13-ultimate-solution/           # ← BREAKTHROUGH #2: 6/6 k3s blockers resolved
-│   ├── 14-*/                           # (Interim experiment)
-│   ├── 15-stable-wait-monitoring/      # ← BREAKTHROUGH #3: 15+ min stability
-│   ├── 16-helm-chart-deployment/       # Pod execution research
-│   ├── 17-inotify-cgroup-faker/        # ← FUNDAMENTAL BLOCKER identified
-│   ├── 18-23-*/                        # Additional research experiments
-│   ├── 24-docker-runtime-exploration/  # ← BOUNDARY CONFIRMED: runc init isolation
-│   ├── EXPERIMENTS-09-10-SUMMARY.md    # Creative alternatives
-│   └── EXPERIMENTS-11-13-SUMMARY.md    # Final breakthroughs
+│   ├── 13-ultimate-solution/           # ← BREAKTHROUGH #2: 6/6 blockers resolved
+│   ├── 15-wait-and-retry/              # ← BREAKTHROUGH #3: 15+ min stability
+│   ├── 24-docker-runtime-exploration/  # ← BOUNDARY CONFIRMED
+│   ├── 32-preload-images/              # ← 100% achievement
+│   └── EXPERIMENTS-INDEX.md            # Complete index of all experiments
 ├── solutions/         # Production-ready implementations
 │   ├── control-plane-native/           # ← RECOMMENDED (Exp 05)
 │   ├── control-plane-docker/           # Legacy
 │   └── worker-ptrace-experimental/     # Proof-of-concept (Exp 04)
 ├── docs/              # Technical documentation
-│   └── proposals/     # Upstream contribution proposals
+│   ├── QUICK-REFERENCE.md    # Command reference
+│   ├── TESTING-GUIDE.md      # Testing procedures
+│   ├── summaries/            # Research summaries
+│   └── proposals/            # Upstream contribution proposals
 ├── tools/             # Automation scripts and utilities
-│   ├── setup-claude.sh       # Auto-installs all tools (container runtime, k8s, helm)
+│   ├── setup-claude.sh       # Auto-installs all tools
 │   ├── quick-start.sh        # One-command cluster startup
 │   └── README.md             # Tools documentation
-├── BREAKTHROUGH.md    # Experiment 05 discovery story
-├── PROGRESS-SUMMARY.md       # Complete research findings (Experiments 15-17)
-├── RESEARCH-CONTINUATION.md  # Experiments 06-08 summary
-├── TESTING-GUIDE.md   # Comprehensive testing procedures
-└── QUICK-REFERENCE.md # Fast lookup guide
+└── .claude/hooks/     # Automation hooks
+    └── SessionStart          # Auto-starts environment
 ```
 
 ### Key Scripts
@@ -194,17 +180,10 @@ bash run-ultimate-solution.sh
 - Fully stable, runs indefinitely
 - Perfect for Helm chart development
 
-**experiments/15-stable-wait-monitoring/run-wait-and-monitor.sh** ⭐
+**experiments/15-wait-and-retry/run-wait-and-monitor.sh**
 - Stable k3s worker node (Experiment 15)
 - 15+ minute stability, kubectl 100% functional
 - API layer works completely
-- Pod execution blocked by cgroup limitation
-
-**experiments/17-inotify-cgroup-faker/cgroup-faker-inotify.sh**
-- Real-time inotify-based cgroup file monitoring
-- Proved inotify works in gVisor
-- Identified fundamental blocker: cannot fake cgroup files in userspace
-- runc requires real kernel-backed cgroup control files
 
 **tools/setup-claude.sh** (Auto-runs via SessionStart hook)
 - Installs container runtime (podman, docker CLI, buildah)
@@ -419,7 +398,8 @@ Each experiment follows structured documentation:
 - research/methodology.md - Experimental approach
 - research/findings.md - Detailed results with evidence
 - research/conclusions.md - Final recommendations
-- docs/technical-deep-dive.md - Complete technical summary
+- docs/summaries/RESEARCH-SUMMARY.md - Consolidated research summary
+- experiments/EXPERIMENTS-INDEX.md - Complete experiment index
 
 ## Related Upstream Issues
 
