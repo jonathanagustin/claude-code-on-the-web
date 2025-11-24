@@ -66,8 +66,8 @@ state = "/tmp/exp30/containerd/state"
 
       [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-          # Try shim v1 instead of v2 for gVisor compatibility
-          runtime_type = "io.containerd.runc.v1"
+          # Use shim v2 with patched containerd
+          runtime_type = "io.containerd.runc.v2"
 
           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
             BinaryName = "/usr/bin/runc-gvisor"
@@ -77,6 +77,16 @@ state = "/tmp/exp30/containerd/state"
     [plugins."io.containerd.grpc.v1.cri".cni]
       bin_dir = "/opt/cni/bin"
       conf_dir = "/etc/cni/net.d"
+
+  [plugins."io.containerd.snapshotter.v1.native"]
+    root_path = "/tmp/exp30/containerd/root/io.containerd.snapshotter.v1.native"
+
+  [plugins."io.containerd.transfer.v1.local"]
+    config_path = ""
+    max_concurrent_downloads = 3
+
+  [plugins."io.containerd.service.v1.images-service"]
+    default_platform = "linux/amd64"
 EOF
 
 echo "✓ Config created - NO kernel version checks!"
@@ -98,12 +108,11 @@ echo "✓ runc-gvisor-patched: $(stat -c%s /usr/bin/runc-gvisor-patched) bytes"
 echo "✓ runc-gvisor wrapper: present"
 echo ""
 
-# Start standalone containerd
-echo "Step 5: Starting standalone containerd (using /usr/bin/containerd v1.7.28)"
-# Ensure containerd uses its own shim, not k3s's shim
-PATH="/usr/bin:$PATH" /usr/bin/containerd --config $WORK_DIR/containerd/config.toml > $WORK_DIR/containerd.log 2>&1 &
+# Start patched containerd
+echo "Step 5: Starting PATCHED containerd (v2.1.4 - gVisor compatible)"
+/usr/bin/containerd-gvisor-patched --config $WORK_DIR/containerd/config.toml > $WORK_DIR/containerd.log 2>&1 &
 CONTAINERD_PID=$!
-echo "containerd started (PID: $CONTAINERD_PID, using /usr/bin shims)"
+echo "containerd started (PID: $CONTAINERD_PID) - kernel version check BYPASSED"
 
 # Wait for containerd
 sleep 8
