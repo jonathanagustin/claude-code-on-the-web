@@ -22,42 +22,40 @@ if [ -f "tools/setup-claude.sh" ]; then
     echo ""
 fi
 
-# Configure environment variables for kubectl
-if [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
-    export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
-    echo "✓ KUBECONFIG configured"
-fi
-
 # Add CNI bin directory to PATH
 export PATH="/opt/cni/bin:$PATH"
 
 echo "======================================"
-echo "Production-Ready Solution Available"
+echo "Starting k3s Control-Plane"
 echo "======================================"
 echo ""
-echo "🎉 Experiment 05: Control-Plane (PRODUCTION-READY)"
-echo ""
-echo "Start the k3s control-plane:"
-echo "  sudo bash solutions/control-plane-native/start-k3s-native.sh"
-echo ""
-echo "Perfect for:"
-echo "  ✓ Helm chart development"
-echo "  ✓ YAML validation"
-echo "  ✓ API compatibility testing"
-echo "  ✓ RBAC policy development"
-echo "  ✓ kubectl operations"
-echo ""
-echo "Quick start commands:"
-echo "  kubectl get namespaces --insecure-skip-tls-verify"
-echo "  helm create mychart"
-echo "  helm install test ./mychart/"
-echo ""
-echo "Research Documentation:"
-echo "  - PROGRESS-SUMMARY.md - Complete findings"
-echo "  - experiments/17-inotify-cgroup-faker/README.md - Latest experiment"
-echo "  - experiments/15-stable-wait-monitoring/README.md - Stable k3s"
-echo ""
-echo "Note: Pod execution is not possible in this environment"
-echo "      (requires real kernel cgroup subsystem)"
-echo ""
+
+# Auto-start the production-ready control-plane
+if [ -f "tools/quick-start.sh" ]; then
+    sudo bash tools/quick-start.sh
+else
+    echo "⚠️  Quick-start script not found"
+    echo ""
+    echo "Manual start:"
+    echo "  sudo bash solutions/control-plane-native/start-k3s-native.sh"
+fi
+
+# Configure environment variables for kubectl
+if [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
+    export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+    echo ""
+    echo "======================================"
+    echo "Environment Ready!"
+    echo "======================================"
+    echo ""
+    echo "✓ k3s control-plane running"
+    echo "✓ kubectl configured (KUBECONFIG set)"
+    echo "✓ Helm available"
+    echo ""
+    echo "Research Documentation:"
+    echo "  - PROGRESS-SUMMARY.md - Complete findings"
+    echo "  - experiments/17-inotify-cgroup-faker/README.md - Latest experiment"
+    echo "  - CLAUDE.md - Project overview"
+    echo ""
+fi
 
