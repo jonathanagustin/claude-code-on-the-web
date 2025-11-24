@@ -183,11 +183,33 @@ Failed to create pod sandbox: failed to get sandbox image "registry.k8s.io/pause
 
 ### Summary
 
-**Experiment 24 achieved TWO major breakthroughs:**
+**Experiment 24 findings:**
 
-1. **LD_PRELOAD** successfully bypasses cap_last_cap limitation (Layer 1)
-2. **NoNewKeyring = true** successfully bypasses session keyring limitation (Layer 2)
+1. **LD_PRELOAD Partial Success** ⚠️
+   - LD_PRELOAD wrapper successfully redirects /proc/sys access when tested directly
+   - Works for parent runc process
+   - **Does NOT propagate to `runc init` subprocess** in container namespace
+   - This is the fundamental environment boundary (same as Experiments 16-17)
 
-**Result:** Pods now progress significantly further in the container creation process. The new blocker is image pulling from registry.k8s.io, which appears to be a network/registry access issue rather than a fundamental gVisor limitation.
+2. **NoNewKeyring Configuration** ✅
+   - Successfully configured via containerd runtime options
+   - NoNewKeyring = true properly set in generated config
+   - Would eliminate session keyring errors IF we could bypass cap_last_cap
 
-This represents **substantial progress** in overcoming gVisor's limitations for pod execution. We've solved two critical runc init blockers that were preventing container creation.
+3. **Sandbox Image Configuration** ✅
+   - Successfully configured rancher/mirrored-pause:3.6 as sandbox image
+   - Eliminates registry.k8s.io pulling issues
+
+**Current Reality:**
+Pods consistently fail with:
+```
+open /proc/sys/kernel/cap_last_cap: no such file or directory
+```
+
+**Root Cause:** The `runc init` subprocess runs in a completely isolated container namespace where:
+- LD_PRELOAD environment variables don't propagate
+- Ptrace can only trace direct children (not sub-subprocess)
+- FUSE is blocked by gVisor (Experiment 07)
+- Files cannot be faked in userspace (Experiment 17)
+
+This confirms the findings from Experiments 16-17: **~97% of Kubernetes works in gVisor, but pod execution is blocked by the runc init subprocess isolation boundary.**
