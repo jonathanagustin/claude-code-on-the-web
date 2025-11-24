@@ -1,0 +1,20 @@
+--- a/vendor/github.com/moby/sys/capability/capability_linux.go
++++ b/vendor/github.com/moby/sys/capability/capability_linux.go
+@@ -26,9 +26,16 @@ const (
+ )
+
+ var lastCap = sync.OnceValues(func() (Cap, error) {
+ 	f, err := os.Open("/proc/sys/kernel/cap_last_cap")
+ 	if err != nil {
+-		return 0, err
++		// gVisor compatibility: /proc/sys/kernel/cap_last_cap may not exist
++		// Fallback to CAP_LAST_CAP for modern Linux (kernel 5.x+)
++		// This value is safe as it represents the maximum capability number
++		// supported by recent kernels (Linux 5.1+)
++		if os.IsNotExist(err) {
++			return Cap(40), nil
++		}
++		return 0, err
+ 	}
+
+ 	buf := make([]byte, 11)
