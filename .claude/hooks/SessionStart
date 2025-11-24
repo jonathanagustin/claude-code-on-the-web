@@ -41,16 +41,28 @@ else
 fi
 
 # Configure environment variables for kubectl
-if [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
+# Check both legacy and current kubeconfig locations
+if [ -f "/tmp/k3s-control-plane/kubeconfig.yaml" ]; then
+    export KUBECONFIG="/tmp/k3s-control-plane/kubeconfig.yaml"
+    KUBECONFIG_LOCATION="/tmp/k3s-control-plane/kubeconfig.yaml"
+elif [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
     export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+    KUBECONFIG_LOCATION="/etc/rancher/k3s/k3s.yaml"
+fi
+
+if [ -n "$KUBECONFIG_LOCATION" ]; then
     echo ""
     echo "======================================"
     echo "Environment Ready!"
     echo "======================================"
     echo ""
     echo "✓ k3s control-plane running"
-    echo "✓ kubectl configured (KUBECONFIG set)"
+    echo "✓ kubectl configured: $KUBECONFIG_LOCATION"
     echo "✓ Helm available"
+    echo ""
+    echo "Quick test:"
+    echo "  kubectl get namespaces"
+    echo "  helm create mychart"
     echo ""
     echo "Research Documentation:"
     echo "  - PROGRESS-SUMMARY.md - Complete findings"

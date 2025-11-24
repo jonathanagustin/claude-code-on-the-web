@@ -23,16 +23,34 @@ This is a research project investigating the feasibility of running Kubernetes (
 
 ## Quick Start Commands
 
-### ⚡ One-Command Quick Start (RECOMMENDED)
+### 🚀 Automatic Startup (NEW!)
+
+**The environment now starts automatically!** The SessionStart hook will:
+1. Install all development tools (kubectl, helm, k3s, etc.)
+2. Start the production-ready k3s control-plane
+3. Configure kubectl environment variables
 
 ```bash
-# Auto-installs tools and starts production-ready control-plane
+# After session starts, k3s is already running!
+# Just use kubectl directly:
+kubectl get namespaces
+
+# Or test with Helm:
+helm create testchart
+helm install test ./testchart/
+kubectl get all
+```
+
+### ⚡ Manual Quick Start (if needed)
+
+```bash
+# Manually start k3s (if not auto-started)
 sudo bash tools/quick-start.sh
 
-# Or manually:
+# Or start control-plane directly:
 sudo bash solutions/control-plane-native/start-k3s-native.sh
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-kubectl get namespaces --insecure-skip-tls-verify
+export KUBECONFIG=/tmp/k3s-control-plane/kubeconfig.yaml
+kubectl get namespaces
 ```
 
 ### Start k3s Control Plane (Production-Ready - Experiment 05) ⭐
@@ -362,14 +380,14 @@ sudo bash tools/quick-start.sh
 ### Accessing the Cluster
 
 ```bash
-# Set kubeconfig (auto-configured by SessionStart hook)
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+# Kubeconfig is auto-configured by SessionStart hook!
+# Default location: /tmp/k3s-control-plane/kubeconfig.yaml
 
-# Skip TLS verification (self-signed cert)
-kubectl get nodes --insecure-skip-tls-verify
+# Test cluster access (no TLS verification needed for control-plane)
+kubectl get namespaces
 
-# Or configure in kubeconfig
-kubectl config set-cluster default --insecure-skip-tls-verify=true
+# Or manually set if needed
+export KUBECONFIG=/tmp/k3s-control-plane/kubeconfig.yaml
 ```
 
 ## Environment Details
@@ -434,9 +452,11 @@ The `.claude/hooks/SessionStart` script automatically runs when a Claude Code se
 - Installs Kubernetes tools (k3s, kubectl, containerd)
 - Installs development tools (helm, helm-unittest, kubectx, kubens)
 - Installs research tools (inotify-tools, strace, lsof)
+- **🚀 Automatically starts k3s control-plane** (NEW!)
 - Configures KUBECONFIG environment variable
-- Displays production-ready solution instructions
-- Shows quick-start commands and documentation links
+- Displays "Environment Ready!" status
+
+**The environment is now fully automated - k3s is running and ready to use immediately after session startup!**
 
 ## Important Caveats
 
