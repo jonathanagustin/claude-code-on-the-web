@@ -12,9 +12,9 @@
 
 set -e
 
-# Configuration
-K3S_DATA_DIR="${K3S_DATA_DIR:-/tmp/k3s-control-plane}"
-KUBECONFIG_PATH="${KUBECONFIG:-$K3S_DATA_DIR/kubeconfig.yaml}"
+# Configuration - use default k3s paths for standard naming
+K3S_LOG_DIR="/var/log/k3s"
+KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 
 echo "========================================================"
 echo "k3s Native Control-Plane Setup"
@@ -45,13 +45,14 @@ echo "[2/4] Configuring environment..."
 export PATH=$PATH:/opt/cni/bin
 echo "✓ Added /opt/cni/bin to PATH"
 
-# Step 3: Prepare data directory
+# Step 3: Prepare log directory
 echo ""
-echo "[3/4] Preparing k3s data directory..."
-mkdir -p "$K3S_DATA_DIR/logs"
-echo "✓ Data directory: $K3S_DATA_DIR"
+echo "[3/4] Preparing k3s directories..."
+mkdir -p "$K3S_LOG_DIR"
+mkdir -p /etc/rancher/k3s
+echo "✓ Log directory: $K3S_LOG_DIR"
 
-# Step 4: Start k3s server
+# Step 4: Start k3s server (using default paths for standard "default" cluster naming)
 echo ""
 echo "[4/4] Starting k3s server..."
 echo "  Flags:"
@@ -62,8 +63,7 @@ echo ""
 nohup k3s server \
   --disable-agent \
   --disable=coredns,servicelb,traefik,local-storage,metrics-server \
-  --data-dir="$K3S_DATA_DIR/data" \
-  > "$K3S_DATA_DIR/logs/server.log" 2>&1 &
+  > "$K3S_LOG_DIR/server.log" 2>&1 &
 
 K3S_PID=$!
 echo "k3s server started with PID: $K3S_PID"
@@ -71,11 +71,11 @@ echo "k3s server started with PID: $K3S_PID"
 # Wait for API server to be ready
 echo ""
 echo "Waiting for API server to become ready..."
-export KUBECONFIG="$K3S_DATA_DIR/data/server/cred/admin.kubeconfig"
+export KUBECONFIG="$KUBECONFIG_PATH"
 
 READY=false
 for i in {1..60}; do
-    if kubectl get --raw /healthz &>/dev/null; then
+    if [ -f "$KUBECONFIG_PATH" ] && kubectl get --raw /healthz &>/dev/null; then
         READY=true
         break
     fi
@@ -88,13 +88,9 @@ if [ "$READY" = true ]; then
     echo "✓ API server is ready!"
 else
     echo "✗ API server failed to start within 60 seconds"
-    echo "Check logs at: $K3S_DATA_DIR/logs/server.log"
+    echo "Check logs at: $K3S_LOG_DIR/server.log"
     exit 1
 fi
-
-# Copy kubeconfig to convenient location
-cp "$K3S_DATA_DIR/data/server/cred/admin.kubeconfig" "$KUBECONFIG_PATH"
-echo "✓ Kubeconfig copied to: $KUBECONFIG_PATH"
 
 # Verify functionality
 echo ""
@@ -111,8 +107,7 @@ echo "========================================================"
 echo ""
 echo "📋 Configuration:"
 echo "   KUBECONFIG=$KUBECONFIG_PATH"
-echo "   Data Directory: $K3S_DATA_DIR"
-echo "   Logs: $K3S_DATA_DIR/logs/server.log"
+echo "   Logs: $K3S_LOG_DIR/server.log"
 echo "   PID: $K3S_PID"
 echo ""
 echo "🚀 Usage:"

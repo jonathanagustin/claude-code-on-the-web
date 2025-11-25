@@ -32,7 +32,7 @@ echo ""
 
 # Auto-start the production-ready control-plane
 if [ -f "tools/quick-start.sh" ]; then
-    sudo bash tools/quick-start.sh
+    bash tools/quick-start.sh
 else
     echo "⚠️  Quick-start script not found"
     echo ""
@@ -40,12 +40,8 @@ else
     echo "  sudo bash solutions/control-plane-native/start-k3s-native.sh"
 fi
 
-# Configure environment variables for kubectl
-# Check both legacy and current kubeconfig locations
-if [ -f "/tmp/k3s-control-plane/kubeconfig.yaml" ]; then
-    export KUBECONFIG="/tmp/k3s-control-plane/kubeconfig.yaml"
-    KUBECONFIG_LOCATION="/tmp/k3s-control-plane/kubeconfig.yaml"
-elif [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
+# Configure environment variables for kubectl (standard k3s path)
+if [ -f "/etc/rancher/k3s/k3s.yaml" ]; then
     export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
     KUBECONFIG_LOCATION="/etc/rancher/k3s/k3s.yaml"
 fi
